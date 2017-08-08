@@ -1,3 +1,13 @@
+<h2>Notes regarding the changes by bermudaparty</h2>
+These are very rough changes, only uploaded in the current form as per the request of another user. However as to current knowledge the changes work. The only exception is the SVBar, which still needs work. However I had not been able to get it to work before my changes either anyway.
+
+Following changes have been made:
+- The methods that update the colors (of the own bar and the other bars in the picker) now always require a source string (i.e. which bar the current change in color is coming from). This source information is then handled in such a way to prevent feedback loops and all bars now update each other fully. The old system of staggered partial updates (which seems to have been intentional) has been removed.
+    - The colors on the color wheel are still not being updated. This is (a) because I did not get around to implementing it and (b) because always seeing the full color range there seems a good way to make the whole picker more intuitive.
+- The direction of the value bar has been flipped. It now goes from zero value on the left to full value on the right and is (in my opinion) now in accordance with the behavior of the other bars.
+- Small changes throughout the code, which in places was (and still is) quite messy. Again, as far as I know nothing was broken, but some redundancies might have been introduced, since I did not fully familiarize myself with all of the code before making my changes.
+
+
 <h1>Android Holo ColorPicker</h1>
 
 Marie Schweiz <http://marie-schweiz.de/> made a beautifull new design for the Holo ColorPicker which added a lot of new functionality.
