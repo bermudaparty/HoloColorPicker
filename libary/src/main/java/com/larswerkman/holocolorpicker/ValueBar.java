@@ -33,9 +33,14 @@ import android.view.View;
 
 import com.larswerkman.holocolorpicker.R;
 
+import static android.graphics.Color.alpha;
+
 public class ValueBar extends View {
 
-	/*
+    static final String IDENTITY = "valueBar";
+
+
+    /*
 	 * Constants used to save/restore the instance state.
 	 */
 	private static final String STATE_PARENT = "parent";
@@ -216,7 +221,7 @@ public class ValueBar extends View {
 		mBarPointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mBarPointerPaint.setColor(0xff81ff00);
 
-		mPosToSatFactor = 1 / ((float) mBarLength);
+		mPosToSatFactor = 1 / ((float) mBarLength); // TODO there should be only one of these and the other should just be called by 1/ this would allow calculation both ways?
 		mSatToPosFactor = ((float) mBarLength) / 1;
 	}
 
@@ -288,12 +293,12 @@ public class ValueBar extends View {
 		if (!isInEditMode()) {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1,
-					new int[] { Color.HSVToColor(0xFF, mHSVColor), Color.BLACK },
+					new int[] {Color.BLACK, Color.HSVToColor(0xFF, mHSVColor)}, // TODO here the colors should be dynamic as well ++ reverse
 					null, Shader.TileMode.CLAMP);
 		} else {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1,
-					new int[] { 0xff81ff00, Color.BLACK }, null,
+					new int[] {Color.BLACK, 0xff81ff00}, null, // TODO reverse
 					Shader.TileMode.CLAMP);
 			Color.colorToHSV(0xff81ff00, mHSVColor);
 		}
@@ -369,28 +374,19 @@ public class ValueBar extends View {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					mColor = Color.HSVToColor(mHSVColor);
+					mColor = valueSetColor(mColor, 0);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
-					mColor = Color.BLACK;
+					mColor = valueSetColor(mColor, 1);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				}
 			}
@@ -413,7 +409,7 @@ public class ValueBar extends View {
 	 * 
 	 * @param color
 	 */
-	public void setColor(int color) {
+	public void setColor(int color, String source) {
 		int x1, y1;
 		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -423,19 +419,15 @@ public class ValueBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		
+		mColor = color;
 		Color.colorToHSV(color, mHSVColor);
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
-						color, Color.BLACK }, null, Shader.TileMode.CLAMP);
+						valueSetColor(color, 0), valueSetColor(color, 1) }, null, Shader.TileMode.CLAMP); // TODO rverse
 		mBarPaint.setShader(shader);
 		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			if(mPicker.hasOpacityBar())
-				mPicker.changeOpacityBarColor(mColor);
-		}
+		mBarPointerPaint.setColor(color);
+		updateColors(source);
 		invalidate();
 	}
 
@@ -445,15 +437,12 @@ public class ValueBar extends View {
 	 * @param value float between 0 and 1
 	 */
 	public void setValue(float value) {
-		mBarPointerPosition = Math
-				.round((mBarLength - (mSatToPosFactor * value))
+		mBarPointerPosition = Math // TODO reverse
+				.round(((mSatToPosFactor * value))
 						+ mBarPointerHaloRadius);
 		calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(IDENTITY);
 		invalidate();
 	}
     
@@ -469,9 +458,9 @@ public class ValueBar extends View {
 	    } else if (coord > mBarLength) {
 	    	coord = mBarLength;
 	    }
-	    mColor = Color.HSVToColor(new float[] { mHSVColor[0],
+	    mColor = Color.HSVToColor(alpha(mColor), new float[] { mHSVColor[0],
 		    				    mHSVColor[1],
-		    				    (float) (1 - (mPosToSatFactor * coord)) });
+		    				    (float) ((mPosToSatFactor * coord)) }); // TODO reverse
     }
 
 	/**
@@ -496,6 +485,19 @@ public class ValueBar extends View {
 		mPicker = picker;
 	}
 
+    private void updateColors (String source) { // TODO: make a separate method without source
+        if (mPicker != null && source == IDENTITY) {
+            mPicker.changeAllColors(mColor, source);
+        }
+    }
+
+	private int valueSetColor (int color, int value){ // TODO: Overlaps with setValue
+        float[] hsv = {0,0,0};
+        Color.colorToHSV(color, hsv);
+		return Color.HSVToColor(alpha(color), new float[] { hsv[0],
+				hsv[1], value });
+	}
+
 	@Override
 	protected Parcelable onSaveInstanceState() {
 		Parcelable superState = super.onSaveInstanceState();
@@ -518,7 +520,7 @@ public class ValueBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)));
+		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
 		setValue(savedState.getFloat(STATE_VALUE));
 	}
 }

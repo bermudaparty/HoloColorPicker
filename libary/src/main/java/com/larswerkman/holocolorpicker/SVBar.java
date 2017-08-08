@@ -35,6 +35,8 @@ import com.larswerkman.holocolorpicker.R;
 
 public class SVBar extends View {
 
+    static final String IDENTITY = "svBar";
+
 	/*
 	 * Constants used to save/restore the instance state.
 	 */
@@ -349,28 +351,19 @@ public class SVBar extends View {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
 					mColor = Color.WHITE;
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
 					mColor = Color.BLACK;
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				}
 			}
@@ -394,10 +387,7 @@ public class SVBar extends View {
 		mBarPointerPaint.setColor(mColor);
 		// Check whether the Saturation/Value bar is added to the ColorPicker
 		// wheel
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(IDENTITY);
 		invalidate();
 	}
 
@@ -413,10 +403,7 @@ public class SVBar extends View {
 		mBarPointerPaint.setColor(mColor);
 		// Check whether the Saturation/Value bar is added to the ColorPicker
 		// wheel
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(IDENTITY);
 		invalidate();
 	}
 
@@ -427,7 +414,7 @@ public class SVBar extends View {
 	 * 
 	 * @param color
 	 */
-	public void setColor(int color) {
+	public void setColor(int color, String source) {
 		int x1, y1;
 		if(mOrientation) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -444,11 +431,7 @@ public class SVBar extends View {
 		mBarPaint.setShader(shader);
 	    calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			if(mPicker.hasOpacityBar())
-				mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(source);
 		invalidate();
 	}
 
@@ -501,6 +484,12 @@ public class SVBar extends View {
 		mPicker = picker;
 	}
 
+    private void updateColors (String source) { // TODO: make a separate method without source
+        if (mPicker != null && source == IDENTITY) {
+            mPicker.changeAllColors(mColor, source);
+        }
+    }
+
 	@Override
 	protected Parcelable onSaveInstanceState() {
 		Parcelable superState = super.onSaveInstanceState();
@@ -526,7 +515,7 @@ public class SVBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)));
+		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
 		if (savedState.containsKey(STATE_SATURATION)) {
 			setSaturation(savedState.getFloat(STATE_SATURATION));
 		} else {

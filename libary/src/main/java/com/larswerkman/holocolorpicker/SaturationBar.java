@@ -33,9 +33,13 @@ import android.view.View;
 
 import com.larswerkman.holocolorpicker.R;
 
+import static android.graphics.Color.alpha;
+
 public class SaturationBar extends View {
 
-	/*
+    static final String IDENTITY = "saturationBar";
+
+    /*
 	 * Constants used to save/restore the instance state.
 	 */
 	private static final String STATE_PARENT = "parent";
@@ -125,12 +129,12 @@ public class SaturationBar extends View {
 	private float[] mHSVColor = new float[3];
 
 	/**
-	 * Factor used to calculate the position to the Opacity on the bar.
+	 * Factor used to calculate the position to the Saturation on the bar.
 	 */
 	private float mPosToSatFactor;
 
 	/**
-	 * Factor used to calculate the Opacity to the postion on the bar.
+	 * Factor used to calculate the Saturation to the postion on the bar.
 	 */
 	private float mSatToPosFactor;
 
@@ -214,7 +218,7 @@ public class SaturationBar extends View {
 		mBarPointerHaloPaint.setAlpha(0x50);
 
 		mBarPointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mBarPointerPaint.setColor(0xff81ff00);
+		mBarPointerPaint.setColor(0xff81ff00); // TODO: set color dynamically? ja, das ist das grün welches am anfang immer ist. aber muss ich das hier setzen oder später? nein das kann ich setzen wenn ich das Fenster von extern aufrufe
 
 		mPosToSatFactor = 1 / ((float) mBarLength);
 		mSatToPosFactor = ((float) mBarLength) / 1;
@@ -368,32 +372,20 @@ public class SaturationBar extends View {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeValueBarColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
+					updateColors();
 					invalidate();
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					mColor = Color.WHITE;
+					mColor = saturationSetColor(mColor, 0);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeValueBarColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
-					invalidate();
+                    updateColors();
+                    invalidate();
 				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
-					mColor = Color.HSVToColor(mHSVColor);
+					mColor = saturationSetColor(mColor, 1);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-						mPicker.changeValueBarColor(mColor);
-						mPicker.changeOpacityBarColor(mColor);
-					}
-					invalidate();
+                    updateColors();
+                    invalidate();
 				}
 			}
 			if(onSaturationChangedListener != null && oldChangedListenerSaturation != mColor){
@@ -415,7 +407,7 @@ public class SaturationBar extends View {
 	 * 
 	 * @param color
 	 */
-	public void setColor(int color) {
+	public void setColor(int color, String source) {
 		int x1, y1;
 		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -425,27 +417,22 @@ public class SaturationBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		
+		mColor = color;
 		Color.colorToHSV(color, mHSVColor);
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
-						Color.WHITE, color }, null,
-				Shader.TileMode.CLAMP);
+				saturationSetColor(color, 0), saturationSetColor(color, 1) }, null,
+				Shader.TileMode.CLAMP); // TODO: doesn't include opacity
 		mBarPaint.setShader(shader);
 		calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			if(mPicker.hasValueBar())
-				mPicker.changeValueBarColor(mColor);
-			else if(mPicker.hasOpacityBar())
-				mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(source);
 		invalidate();
 	}
 
+
 	/**
-	 * Set the pointer on the bar. With the opacity value.
+	 * Set the pointer on the bar. With the Saturation value.
 	 * 
 	 * @param saturation float between 0 and 1
 	 */
@@ -454,12 +441,15 @@ public class SaturationBar extends View {
 				+ mBarPointerHaloRadius;
 		calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-			mPicker.changeValueBarColor(mColor);
-			mPicker.changeOpacityBarColor(mColor);
-		}
+		updateColors(IDENTITY);
 		invalidate();
+	}
+
+	private int saturationSetColor (int color, int value){ // TODO Overlaps with setSaturation
+		float[] hsv = {0,0,0};
+		Color.colorToHSV(color, hsv);
+		return Color.HSVToColor(alpha(color), new float[] { hsv[0],
+				value, hsv[2] });
 	}
 
         /**
@@ -474,8 +464,8 @@ public class SaturationBar extends View {
 	    } else if (coord > mBarLength) {
 	    	coord = mBarLength;
 	    }
-	    mColor = Color.HSVToColor(
-                new float[] { mHSVColor[0],(mPosToSatFactor * coord),1f });
+	    mColor = Color.HSVToColor(alpha(mColor),
+                new float[] { mHSVColor[0],(mPosToSatFactor * coord), mHSVColor[2] }); // TODO: hier wird auch eine Farbe berechnet, aber diese sollte stimmen.
     }
 
 	/**
@@ -500,6 +490,18 @@ public class SaturationBar extends View {
 		mPicker = picker;
 	}
 
+	private void updateColors(String source) {
+        if (mPicker != null && source == IDENTITY) {
+            mPicker.changeAllColors(mColor, source);
+        }
+    }
+
+    private void updateColors() {
+        if (mPicker != null) {
+            mPicker.changeAllColors(mColor, IDENTITY);
+        }
+    }
+
 	@Override
 	protected Parcelable onSaveInstanceState() {
 		Parcelable superState = super.onSaveInstanceState();
@@ -522,7 +524,7 @@ public class SaturationBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)));
+		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
 		setSaturation(savedState.getFloat(STATE_SATURATION));
 	}
 }

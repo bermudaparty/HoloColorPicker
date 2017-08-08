@@ -35,7 +35,10 @@ import com.larswerkman.holocolorpicker.R;
 
 public class OpacityBar extends View {
 
-	/*
+    static final String IDENTITY = "opacityBar";
+
+
+    /*
 	 * Constants used to save/restore the instance state.
 	 */
 	private static final String STATE_PARENT = "parent";
@@ -368,25 +371,19 @@ public class OpacityBar extends View {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-					}
-					invalidate();
+                    updateColors(IDENTITY);
+                    invalidate();
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					mColor = Color.TRANSPARENT;
+					mColor = lowerBoundColor(mHSVColor);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-					}
-					invalidate();
+                    updateColors(IDENTITY);
+                    invalidate();
 				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
 					mColor = Color.HSVToColor(mHSVColor);
 					mBarPointerPaint.setColor(mColor);
-					if (mPicker != null) {
-						mPicker.setNewCenterColor(mColor);
-					}
+					updateColors(IDENTITY);
 					invalidate();
 				}
 			}
@@ -409,7 +406,7 @@ public class OpacityBar extends View {
 	 * 
 	 * @param color
 	 */
-	public void setColor(int color) {
+	public void setColor(int color, String source) {
 		int x1, y1;
 		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -419,18 +416,15 @@ public class OpacityBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		
+		mColor = color;
 		Color.colorToHSV(color, mHSVColor);
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
-				x1, y1, new int[] {
-						Color.HSVToColor(0x00, mHSVColor), color }, null,
+				x1, y1, new int[] {lowerBoundColor(mHSVColor), color }, null,
 				Shader.TileMode.CLAMP);
 		mBarPaint.setShader(shader);
 		calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-		}
+		updateColors(source);
 		invalidate();
 	}
 
@@ -439,14 +433,12 @@ public class OpacityBar extends View {
 	 * 
 	 * @param opacity float between 0 and 255
 	 */
-	public void setOpacity(int opacity) {
+	public void setOpacity(int opacity, String source) {
 		mBarPointerPosition = Math.round((mOpacToPosFactor * opacity))
 				+ mBarPointerHaloRadius;
 		calculateColor(mBarPointerPosition);
 		mBarPointerPaint.setColor(mColor);
-		if (mPicker != null) {
-			mPicker.setNewCenterColor(mColor);
-		}
+		updateColors(source); // TODO this actually gets called from the color picker
 		invalidate();
 	}
 
@@ -467,6 +459,8 @@ public class OpacityBar extends View {
 		}
 	}
 
+
+
 	/**
 	 * Calculate the color selected by the pointer on the bar.
 	 * 
@@ -486,7 +480,7 @@ public class OpacityBar extends View {
     		if (Color.alpha(mColor) > 250) {
     		    mColor = Color.HSVToColor(mHSVColor);
     		} else if (Color.alpha(mColor) < 5) {
-    		    mColor = Color.TRANSPARENT;
+    		    mColor = lowerBoundColor(mHSVColor);
     		}
         }
 
@@ -512,6 +506,22 @@ public class OpacityBar extends View {
 		mPicker = picker;
 	}
 
+    private void updateColors (String source) { // TODO: make a separate method without source
+        if (mPicker != null && source == IDENTITY) {
+            mPicker.changeAllColors(mColor, source);
+        }
+    }
+
+    private int lowerBoundColor (float[] color) {
+		return Color.HSVToColor(0, // TODO: is 0 correct?
+				mHSVColor);
+	}
+
+	private int upperBoundColor (float[] color) {
+		return Color.HSVToColor(255, // TODO: is 255 correct?
+				mHSVColor);
+	}
+
 	@Override
 	protected Parcelable onSaveInstanceState() {
 		Parcelable superState = super.onSaveInstanceState();
@@ -531,7 +541,7 @@ public class OpacityBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)));
-		setOpacity(savedState.getInt(STATE_OPACITY));
+		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
+		setOpacity(savedState.getInt(STATE_OPACITY), IDENTITY);
 	}
 }

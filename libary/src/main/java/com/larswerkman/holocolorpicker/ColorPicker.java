@@ -16,6 +16,10 @@
 
 package com.larswerkman.holocolorpicker;
 
+// TODO: ColorPicker is overwriting color completely instead of only hue.
+// TODO: saturationbar and valuebar are not picking up opacity (simply not included in the color calculations == each has one of the bounds not reacting to it)
+// see here: http://hslpicker.com)
+
 import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
@@ -32,6 +36,8 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import com.larswerkman.holocolorpicker.R;
+
+import static android.graphics.Color.alpha;
 
 /**
  * Displays a holo-themed color picker.
@@ -50,6 +56,8 @@ public class ColorPicker extends View {
 	private static final String STATE_ANGLE = "angle";
 	private static final String STATE_OLD_COLOR = "color";
 	private static final String STATE_SHOW_OLD_COLOR = "showColor";
+    static final String IDENTITY = "colorPicker";
+
 
 	/**
 	 * Colors to construct the color wheel using {@link android.graphics.SweepGradient}.
@@ -361,22 +369,22 @@ public class ColorPicker extends View {
 		mPointerHaloPaint.setAlpha(0x50);
 
 		mPointerColor = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mPointerColor.setColor(calculateColor(mAngle));
+		mPointerColor.setColor(calculateColor(mAngle, COLORS[0]));
 
 		mCenterNewPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mCenterNewPaint.setColor(calculateColor(mAngle));
+		mCenterNewPaint.setColor(calculateColor(mAngle, COLORS[0]));
 		mCenterNewPaint.setStyle(Paint.Style.FILL);
 
 		mCenterOldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mCenterOldPaint.setColor(calculateColor(mAngle));
+		mCenterOldPaint.setColor(calculateColor(mAngle, COLORS[0]));
 		mCenterOldPaint.setStyle(Paint.Style.FILL);
 
 		mCenterHaloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mCenterHaloPaint.setColor(Color.BLACK);
 		mCenterHaloPaint.setAlpha(0x00);
 		
-		mCenterNewColor = calculateColor(mAngle);
-		mCenterOldColor = calculateColor(mAngle);
+		mCenterNewColor = calculateColor(mAngle, COLORS[0]);
+		mCenterOldColor = calculateColor(mAngle, COLORS[0]);
 		mShowCenterOldColor = true;
 	}
 
@@ -464,6 +472,15 @@ public class ColorPicker extends View {
 		return s + Math.round(p * (d - s));
 	}
 
+	private int calculateHueColorHelper(int color, int colorForHue) {
+		float[] hsv = {0,0,0};
+		float[] hue = {0,0,0};
+		Color.colorToHSV(color, hsv);
+		Color.colorToHSV(colorForHue, hue);
+		return Color.HSVToColor(alpha(color), new float[] { hue[0],
+				hsv[1], hsv[2] });
+	}
+
 	/**
 	 * Calculate the color using the supplied angle.
 	 * 
@@ -472,19 +489,22 @@ public class ColorPicker extends View {
 	 * @return The ARGB value of the color on the color wheel at the specified
 	 *         angle.
 	 */
-	private int calculateColor(float angle) {
+
+
+
+	private int calculateColor(float angle, int prevColor) {
 		float unit = (float) (angle / (2 * Math.PI));
 		if (unit < 0) {
 			unit += 1;
 		}
 
 		if (unit <= 0) {
-			mColor = COLORS[0];
-			return COLORS[0];
+			mColor = calculateHueColorHelper(prevColor, COLORS[0]);
+			return mColor;
 		}
 		if (unit >= 1) {
-			mColor = COLORS[COLORS.length - 1];
-			return COLORS[COLORS.length - 1];
+			mColor = calculateHueColorHelper(prevColor, COLORS[COLORS.length - 1]);
+			return mColor;
 		}
 
 		float p = unit * (COLORS.length - 1);
@@ -498,8 +518,8 @@ public class ColorPicker extends View {
 		int g = ave(Color.green(c0), Color.green(c1), p);
 		int b = ave(Color.blue(c0), Color.blue(c1), p);
 
-		mColor = Color.argb(a, r, g, b);
-		return Color.argb(a, r, g, b);
+		mColor = calculateHueColorHelper(prevColor, Color.argb(a, r, g, b));
+		return mColor;
 	}
 
 	/**
@@ -522,22 +542,22 @@ public class ColorPicker extends View {
 	 *            won't look close to the original color. This is especially
 	 *            true for shades of grey. You have been warned!
 	 */
-	public void setColor(int color) {
+	public void setColor(int color, String source) {
 		mAngle = colorToAngle(color);
-		mPointerColor.setColor(calculateColor(mAngle));
+		mPointerColor.setColor(calculateColor(mAngle, color));
 
 		// check of the instance isn't null
 		if (mOpacityBar != null) {
 			// set the value of the opacity
-			mOpacityBar.setColor(mColor);
-			mOpacityBar.setOpacity(Color.alpha(color));
+			mOpacityBar.setColor(color, source);
+			mOpacityBar.setOpacity(Color.alpha(color), source);
 		}
 
 		// check if the instance isn't null
 		if (mSVbar != null) {
 			// the array mHSV will be filled with the HSV values of the color.
 			Color.colorToHSV(color, mHSV);
-			mSVbar.setColor(mColor);
+			mSVbar.setColor(color, source);
 
 			// because of the design of the Saturation/Value bar,
 			// we can only use Saturation or Value every time.
@@ -551,13 +571,13 @@ public class ColorPicker extends View {
 
 		if (mSaturationBar != null) {
 			Color.colorToHSV(color, mHSV);
-			mSaturationBar.setColor(mColor);
+			mSaturationBar.setColor(color, source);
 			mSaturationBar.setSaturation(mHSV[1]);
 		}
 
 		if (mValueBar != null && mSaturationBar == null) {
 			Color.colorToHSV(color, mHSV);
-			mValueBar.setColor(mColor);
+			mValueBar.setColor(color, source);
 			mValueBar.setValue(mHSV[2]);
 		} else if (mValueBar != null) {
 			Color.colorToHSV(color, mHSV);
@@ -607,7 +627,7 @@ public class ColorPicker extends View {
 					&& y >= -mColorCenterRadius && y <= mColorCenterRadius
 					&& mShowCenterOldColor) {
 				mCenterHaloPaint.setAlpha(0x50);
-				setColor(getOldCenterColor());
+				setColor(getOldCenterColor(), IDENTITY);
 				invalidate();
 			}
                         // Check whether the user pressed anywhere on the wheel.
@@ -626,25 +646,12 @@ public class ColorPicker extends View {
 		case MotionEvent.ACTION_MOVE:
 			if (mUserIsMovingPointer) {
 				mAngle = (float) Math.atan2(y - mSlopY, x - mSlopX);
-				mPointerColor.setColor(calculateColor(mAngle));
+				calculateColor(mAngle, mColor);
+				mPointerColor.setColor(mColor);
 
-				setNewCenterColor(mCenterNewColor = calculateColor(mAngle));
+				setNewCenterColor(mCenterNewColor = mColor);
 				
-				if (mOpacityBar != null) {
-					mOpacityBar.setColor(mColor);
-				}
-
-				if (mValueBar != null) {
-					mValueBar.setColor(mColor);
-				}
-
-				if (mSaturationBar != null) {
-					mSaturationBar.setColor(mColor);
-				}
-
-				if (mSVbar != null) {
-					mSVbar.setColor(mColor);
-				}
+				setColor(mColor, IDENTITY); //
 
 				invalidate();
 			}
@@ -700,7 +707,7 @@ public class ColorPicker extends View {
 		mSVbar = bar;
 		// Give an instance of the color picker to the Saturation/Value bar.
 		mSVbar.setColorPicker(this);
-		mSVbar.setColor(mColor);
+		mSVbar.setColor(mColor, IDENTITY);
 	}
 
 	/**
@@ -712,19 +719,19 @@ public class ColorPicker extends View {
 		mOpacityBar = bar;
 		// Give an instance of the color picker to the Opacity bar.
 		mOpacityBar.setColorPicker(this);
-		mOpacityBar.setColor(mColor);
+		mOpacityBar.setColor(mColor, IDENTITY); // TODO: this could be problematic because it comes from the outside???
 	}
 
 	public void addSaturationBar(SaturationBar bar) {
 		mSaturationBar = bar;
 		mSaturationBar.setColorPicker(this);
-		mSaturationBar.setColor(mColor);
+		mSaturationBar.setColor(mColor, IDENTITY);
 	}
 
 	public void addValueBar(ValueBar bar) {
 		mValueBar = bar;
 		mValueBar.setColorPicker(this);
-		mValueBar.setColor(mColor);
+		mValueBar.setColor(mColor, IDENTITY);
 	}
 
 	/**
@@ -775,40 +782,21 @@ public class ColorPicker extends View {
 		return mShowCenterOldColor;
 	}
 
-	/**
-	 * Used to change the color of the {@code OpacityBar} used by the
-	 * {@code SVBar} if there is an change in color.
-	 * 
-	 * @param color int of the color used to change the opacity bar color.
-	 */
-	public void changeOpacityBarColor(int color) {
-		if (mOpacityBar != null) {
-			mOpacityBar.setColor(color);
-		}
-	}
 
-	/**
-	 * Used to change the color of the {@code SaturationBar}.
-	 * 
-	 * @param color
-	 *            int of the color used to change the opacity bar color.
-	 */
-	public void changeSaturationBarColor(int color) {
-		if (mSaturationBar != null) {
-			mSaturationBar.setColor(color);
-		}
-	}
 
-	/**
-	 * Used to change the color of the {@code ValueBar}.
-	 * 
-	 * @param color int of the color used to change the opacity bar color.
-	 */
-	public void changeValueBarColor(int color) {
-		if (mValueBar != null) {
-			mValueBar.setColor(color);
-		}
-	}
+	public void changeAllColors(int color, String source) { // TODO; deprecate! setColor does it better
+        mColor = color;
+		setNewCenterColor(color);
+        if (mSaturationBar != null && source != mSaturationBar.IDENTITY) {
+            mSaturationBar.setColor(color, source);
+        }
+        if (mOpacityBar != null  && source != mOpacityBar.IDENTITY) {
+            mOpacityBar.setColor(color, source);
+        }
+        if (mValueBar != null  && source != mValueBar.IDENTITY) {
+            mValueBar.setColor(color, source);
+        }
+    }
 	
 	/**
 	 * Checks if there is an {@code OpacityBar} connected.
@@ -869,7 +857,7 @@ public class ColorPicker extends View {
 		mAngle = savedState.getFloat(STATE_ANGLE);
 		setOldCenterColor(savedState.getInt(STATE_OLD_COLOR));
 		mShowCenterOldColor = savedState.getBoolean(STATE_SHOW_OLD_COLOR);
-		int currentColor = calculateColor(mAngle);
+		int currentColor = calculateColor(mAngle, mColor);
 		mPointerColor.setColor(currentColor);
 		setNewCenterColor(currentColor);
 	}
