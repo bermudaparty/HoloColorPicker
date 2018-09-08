@@ -1,4 +1,11 @@
 <h2>Notes regarding the changes by bermudaparty</h2>
+
+> Update: 08.09.2018. Committed a lot of local changes regarding communication between classes.
+> (1) Some changes to how the source of a color update is handled. But basically still the same logic as my last update.
+> (2) This however led to a lot of wobbling on the other bars when moving one bar. As it turns out this was to inaccuracies in how the colors were being converted between RGB and HSV (it seems that the algorithm doing that is somewhat broken, as it should technically be possible to do losslessly). Made changes so that all colors are handled in HSV during communication between components. They only get converted to RGB for updating display colors, but never stored as RGB.
+> In order to provide these updates here but still also include them in my own projects, I had to transition to using jitpack. Some gradle settings had to be updated in order to make this worker (I also deleted the SVBar that kept the project from compiling on jitpack because I haven't properly updated it). see https://jitpack.io/ for instructions on how to use my version in your project.
+
+
 These are very rough changes, only uploaded in the current form as per the request of another user. However as to current knowledge the changes work. The only exception is the SVBar, which still needs work. However I had not been able to get it to work before my changes either anyway.
 
 Following changes have been made:
