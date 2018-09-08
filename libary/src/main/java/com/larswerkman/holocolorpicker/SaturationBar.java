@@ -28,16 +28,13 @@ import android.graphics.Shader;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.larswerkman.holocolorpicker.R;
-
-import static android.graphics.Color.alpha;
-
 public class SaturationBar extends View {
 
-    static final String IDENTITY = "saturationBar";
+	private static final String TAG = "saturationBar";
 
     /*
 	 * Constants used to save/restore the instance state.
@@ -45,6 +42,7 @@ public class SaturationBar extends View {
 	private static final String STATE_PARENT = "parent";
 	private static final String STATE_COLOR = "color";
 	private static final String STATE_SATURATION = "saturation";
+	private static final String STATE_ALPHA = "alpha";
 	private static final String STATE_ORIENTATION = "orientation";
 	
 	/**
@@ -52,6 +50,7 @@ public class SaturationBar extends View {
 	 */
 	private static final boolean ORIENTATION_HORIZONTAL = true;
 	private static final boolean ORIENTATION_VERTICAL = false;
+
 
 	/**
 	 * Default orientation of the bar.
@@ -117,16 +116,19 @@ public class SaturationBar extends View {
 	 */
 	private boolean mIsMovingPointer;
 
+	private int mAlpha;
+
 	/**
 	 * The ARGB value of the currently selected color.
 	 */
-	private int mColor;
+	//private int mColor;
 
 	/**
 	 * An array of floats that can be build into a {@code Color} <br>
 	 * Where we can extract the color from.
 	 */
 	private float[] mHSVColor = new float[3];
+
 
 	/**
 	 * Factor used to calculate the position to the Saturation on the bar.
@@ -160,7 +162,7 @@ public class SaturationBar extends View {
 	private int oldChangedListenerSaturation;
 
     public interface OnSaturationChangedListener {
-        public void onSaturationChanged(int saturation);
+        void onSaturationChanged(int saturation);
     }
 
     public void setOnSaturationChangedListener(OnSaturationChangedListener listener) {
@@ -306,11 +308,8 @@ public class SaturationBar extends View {
 		mPosToSatFactor = 1 / ((float) mBarLength);
 		mSatToPosFactor = ((float) mBarLength) / 1;
 		
-		float[] hsvColor = new float[3];
-		Color.colorToHSV(mColor, hsvColor);
-		
 		if (!isInEditMode()){
-			mBarPointerPosition = Math.round((mSatToPosFactor * hsvColor[1])
+			mBarPointerPosition = Math.round((mSatToPosFactor * mHSVColor[1])
 					+ mBarPointerHaloRadius);
 		} else {
 			mBarPointerPosition = mBarLength + mBarPointerHaloRadius;
@@ -337,9 +336,9 @@ public class SaturationBar extends View {
 		canvas.drawCircle(cX, cY, mBarPointerHaloRadius, mBarPointerHaloPaint);
 		// Draw the pointer.
 		canvas.drawCircle(cX, cY, mBarPointerRadius, mBarPointerPaint);
-	};
+	}
 
-	@Override
+    @Override
 	public boolean onTouchEvent(MotionEvent event) {
 		getParent().requestDisallowInterceptTouchEvent(true);
 
@@ -359,39 +358,43 @@ public class SaturationBar extends View {
 			if (dimen >= (mBarPointerHaloRadius)
 					&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 				mBarPointerPosition = Math.round(dimen);
-				calculateColor(Math.round(dimen));
-				mBarPointerPaint.setColor(mColor);
+				setSaturationFromCoord(mHSVColor, dimen);
 				invalidate();
 			}
 			break;
 		case MotionEvent.ACTION_MOVE:
 			if (mIsMovingPointer) {
 				// Move the the pointer on the bar.
+
+				// Touch Event happens on the bar inside the end points
 				if (dimen >= mBarPointerHaloRadius
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = Math.round(dimen);
-					calculateColor(Math.round(dimen));
-					mBarPointerPaint.setColor(mColor);
-					updateColors();
+					setSaturationFromCoord(mHSVColor, dimen);
+					setColor(mHSVColor);
 					invalidate();
+
+				// Touch event happens on the start point or to the left of it.
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					mColor = saturationSetColor(mColor, 0);
-					mBarPointerPaint.setColor(mColor);
-                    updateColors();
+					setSaturation(mHSVColor, 0);
+                    setColor(mHSVColor);
                     invalidate();
-				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
+
+                // Touch event happens to the right of the end point TODO this calculation's different from the other end point. shouldn't it be minus here?
+				} else if (dimen > (mBarPointerHaloRadius - mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
-					mColor = saturationSetColor(mColor, 1);
-					mBarPointerPaint.setColor(mColor);
-                    updateColors();
+					setSaturation(mHSVColor, 1);
+                    setColor(mHSVColor);
                     invalidate();
 				}
 			}
-			if(onSaturationChangedListener != null && oldChangedListenerSaturation != mColor){
-	            onSaturationChangedListener.onSaturationChanged(mColor);
-	            oldChangedListenerSaturation = mColor;
+			int rgbCol = getDisplayColor(mHSVColor);
+			if(onSaturationChangedListener != null && oldChangedListenerSaturation != rgbCol){
+	            onSaturationChangedListener.onSaturationChanged(rgbCol);
+	            oldChangedListenerSaturation = rgbCol;
 			}
+
 			break;
 		case MotionEvent.ACTION_UP:
 			mIsMovingPointer = false;
@@ -400,14 +403,21 @@ public class SaturationBar extends View {
 		return true;
 	}
 
-	/**
-	 * Set the bar color. <br>
-	 * <br>
-	 * Its discouraged to use this method.
-	 * 
-	 * @param color
-	 */
-	public void setColor(int color, String source) {
+    private void setColor(float[] color){
+        setColor(color, false);
+    }
+
+    public void initializeColor(int alpha, float[] color){
+	    mAlpha = alpha;
+        mBarPointerPosition = Math
+                .round(((mSatToPosFactor * color[1]))
+                        + mBarPointerHaloRadius);
+
+        setColor(color, true);
+    }
+
+
+	private void setColor(float[] color, boolean initialize) {
 		int x1, y1;
 		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -417,90 +427,69 @@ public class SaturationBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		mColor = color;
-		Color.colorToHSV(color, mHSVColor);
+		mHSVColor = color;
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
-				saturationSetColor(color, 0), saturationSetColor(color, 1) }, null,
-				Shader.TileMode.CLAMP); // TODO: doesn't include opacity
+				getDisplayColor(color, 0), getDisplayColor(color, 1) }, null,
+				Shader.TileMode.CLAMP);
 		mBarPaint.setShader(shader);
-		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		updateColors(source);
+
+		mBarPointerPaint.setColor(getDisplayColor(color));
+
+        if (!initialize){
+            if (mPicker != null) {
+                mPicker.setColor(mAlpha, mHSVColor, ColorPicker.SOURCE_SATURATION);
+            }
+        }
 		invalidate();
 	}
 
 
-	/**
-	 * Set the pointer on the bar. With the Saturation value.
-	 * 
-	 * @param saturation float between 0 and 1
-	 */
-	public void setSaturation(float saturation) {
-		mBarPointerPosition = Math.round((mSatToPosFactor * saturation))
-				+ mBarPointerHaloRadius;
-		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		updateColors(IDENTITY);
-		invalidate();
+	private int getDisplayColor (float[] color, float saturation){
+		return Color.HSVToColor(mAlpha, new float[] { color[0],
+				saturation, color[2] });
 	}
 
-	private int saturationSetColor (int color, int value){ // TODO Overlaps with setSaturation
-		float[] hsv = {0,0,0};
-		Color.colorToHSV(color, hsv);
-		return Color.HSVToColor(alpha(color), new float[] { hsv[0],
-				value, hsv[2] });
+	private int getDisplayColor (float[] color){
+		return getDisplayColor(color, color[1]);
 	}
+
+
+
+	private void setSaturation(float[] color, float saturation){
+        color[1] = saturation;
+        mHSVColor = color;
+    }
 
         /**
          * Calculate the color selected by the pointer on the bar.
          * 
          * @param coord Coordinate of the pointer.
          */
-	private void calculateColor(int coord) {
-	    coord = coord - mBarPointerHaloRadius;
+	private void setSaturationFromCoord(float[] color, float coord) {
+        coord = coord - mBarPointerHaloRadius;
 	    if (coord < 0) {
 	    	coord = 0;
 	    } else if (coord > mBarLength) {
 	    	coord = mBarLength;
 	    }
-	    mColor = Color.HSVToColor(alpha(mColor),
-                new float[] { mHSVColor[0],(mPosToSatFactor * coord), mHSVColor[2] }); // TODO: hier wird auch eine Farbe berechnet, aber diese sollte stimmen.
+	    float saturation = mPosToSatFactor * coord;
+	    setSaturation(color, saturation);
     }
 
-	/**
-	 * Get the currently selected color.
-	 * 
-	 * @return The ARGB value of the currently selected color.
-	 */
-	public int getColor() {
-		return mColor;
-	}
 
 	/**
 	 * Adds a {@code ColorPicker} instance to the bar. <br>
 	 * <br>
 	 * WARNING: Don't change the color picker. it is done already when the bar
 	 * is added to the ColorPicker
-	 * 
-	 * @see com.larswerkman.holocolorpicker.ColorPicker#addSVBar(SVBar)
+	 *
 	 * @param picker
 	 */
 	public void setColorPicker(ColorPicker picker) {
 		mPicker = picker;
 	}
 
-	private void updateColors(String source) {
-        if (mPicker != null && source == IDENTITY) {
-            mPicker.changeAllColors(mColor, source);
-        }
-    }
-
-    private void updateColors() {
-        if (mPicker != null) {
-            mPicker.changeAllColors(mColor, IDENTITY);
-        }
-    }
 
 	@Override
 	protected Parcelable onSaveInstanceState() {
@@ -508,11 +497,10 @@ public class SaturationBar extends View {
 
 		Bundle state = new Bundle();
 		state.putParcelable(STATE_PARENT, superState);
+		state.putInt(STATE_ALPHA, mAlpha);
 		state.putFloatArray(STATE_COLOR, mHSVColor);
-		
-		float[] hsvColor = new float[3];
-		Color.colorToHSV(mColor, hsvColor);
-		state.putFloat(STATE_SATURATION, hsvColor[1]);
+
+		state.putFloat(STATE_SATURATION, mHSVColor[1]);
 
 		return state;
 	}
@@ -524,7 +512,15 @@ public class SaturationBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
-		setSaturation(savedState.getFloat(STATE_SATURATION));
+		initializeColor(savedState.getInt(STATE_ALPHA), savedState.getFloatArray(STATE_COLOR));
 	}
+
+
+
+	private void logHSV(String source, float[] mHSVColor){
+		Log.d(TAG, source + ": "+mHSVColor[0]+"/"+mHSVColor[1]+"/"+mHSVColor[2]);
+	}
+
+
+
 }

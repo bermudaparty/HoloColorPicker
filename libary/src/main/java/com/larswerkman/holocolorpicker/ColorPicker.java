@@ -32,10 +32,9 @@ import android.graphics.SweepGradient;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-
-import com.larswerkman.holocolorpicker.R;
 
 import static android.graphics.Color.alpha;
 
@@ -44,19 +43,33 @@ import static android.graphics.Color.alpha;
  * 
  * <p>
  * Use {@link #getColor()} to retrieve the selected color. <br>
- * Use {@link #addSVBar(SVBar)} to add a Saturation/Value Bar. <br>
  * Use {@link #addOpacityBar(OpacityBar)} to add a Opacity Bar.
  * </p>
  */
 public class ColorPicker extends View {
+
+	private static final String TAG = "colorPicker";
+
+
 	/*
 	 * Constants used to save/restore the instance state.
 	 */
 	private static final String STATE_PARENT = "parent";
 	private static final String STATE_ANGLE = "angle";
+    private static final String STATE_ALPHA = "alpha";
+    private static final String STATE_HSV = "hsv";
 	private static final String STATE_OLD_COLOR = "color";
 	private static final String STATE_SHOW_OLD_COLOR = "showColor";
-    static final String IDENTITY = "colorPicker";
+
+
+	/*
+	* Sources
+	 */
+	public static final int SOURCE_OUTSIDE = -1;
+    public static final int SOURCE_OPACITY = 0;
+	public static final int SOURCE_PICKER = 1;
+    public static final int SOURCE_SATURATION = 2;
+    public static final int SOURCE_VALUE = 3;
 
 
 	/**
@@ -134,7 +147,7 @@ public class ColorPicker extends View {
 	/**
 	 * The ARGB value of the currently selected color.
 	 */
-	private int mColor;
+	//private int mColor;
 
 	/**
 	 * The ARGB value of the center with the old selected color.
@@ -145,6 +158,11 @@ public class ColorPicker extends View {
 	 * Whether to show the old color in the center or not.
 	 */
 	private boolean mShowCenterOldColor;
+
+	/**
+	 * Whether to show anything in the center or not.
+	 */
+	private boolean mShowCenter;
 
 	/**
 	 * The ARGB value of the center with the new selected color.
@@ -208,10 +226,7 @@ public class ColorPicker extends View {
 	 */
 	private float[] mHSV = new float[3];
 
-	/**
-	 * {@code SVBar} instance used to control the Saturation/Value bar.
-	 */
-	private SVBar mSVbar = null;
+	private int mAlpha;
 
 	/**
 	 * {@code OpacityBar} instance used to control the Opacity bar.
@@ -268,7 +283,7 @@ public class ColorPicker extends View {
 	 * 
 	 */
 	public interface OnColorChangedListener {
-		public void onColorChanged(int color);
+		void onColorChanged(int color);
 	}
 
 	/**
@@ -277,7 +292,7 @@ public class ColorPicker extends View {
 	 * 
 	 */
 	public interface OnColorSelectedListener {
-		public void onColorSelected(int color);
+		void onColorSelected(int color);
 	}
 
 	/**
@@ -369,22 +384,22 @@ public class ColorPicker extends View {
 		mPointerHaloPaint.setAlpha(0x50);
 
 		mPointerColor = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mPointerColor.setColor(calculateColor(mAngle, COLORS[0]));
+		mPointerColor.setColor(setHueFromAngleRGB(mAngle, COLORS[0]));
 
 		mCenterNewPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mCenterNewPaint.setColor(calculateColor(mAngle, COLORS[0]));
+		mCenterNewPaint.setColor(setHueFromAngleRGB(mAngle, COLORS[0]));
 		mCenterNewPaint.setStyle(Paint.Style.FILL);
 
 		mCenterOldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mCenterOldPaint.setColor(calculateColor(mAngle, COLORS[0]));
+		mCenterOldPaint.setColor(setHueFromAngleRGB(mAngle, COLORS[0]));
 		mCenterOldPaint.setStyle(Paint.Style.FILL);
 
 		mCenterHaloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mCenterHaloPaint.setColor(Color.BLACK);
 		mCenterHaloPaint.setAlpha(0x00);
 		
-		mCenterNewColor = calculateColor(mAngle, COLORS[0]);
-		mCenterOldColor = calculateColor(mAngle, COLORS[0]);
+		mCenterNewColor = setHueFromAngleRGB(mAngle, COLORS[0]);
+		mCenterOldColor = setHueFromAngleRGB(mAngle, COLORS[0]);
 		mShowCenterOldColor = true;
 	}
 
@@ -409,20 +424,26 @@ public class ColorPicker extends View {
 		canvas.drawCircle(pointerPosition[0], pointerPosition[1],
 				mColorPointerRadius, mPointerColor);
 
-		// Draw the halo of the center colors.
-		canvas.drawCircle(0, 0, mColorCenterHaloRadius, mCenterHaloPaint);
-		
-		if (mShowCenterOldColor) {
-			// Draw the old selected color in the center.
-			canvas.drawArc(mCenterRectangle, 90, 180, true, mCenterOldPaint);
 
-			// Draw the new selected color in the center.
-			canvas.drawArc(mCenterRectangle, 270, 180, true, mCenterNewPaint);
+
+		if (mShowCenter){
+
+			// Draw the halo of the center colors.
+			canvas.drawCircle(0, 0, mColorCenterHaloRadius, mCenterHaloPaint);
+
+			if (mShowCenterOldColor) {
+				// Draw the old selected color in the center.
+				canvas.drawArc(mCenterRectangle, 90, 180, true, mCenterOldPaint);
+
+				// Draw the new selected color in the center.
+				canvas.drawArc(mCenterRectangle, 270, 180, true, mCenterNewPaint);
+			}
+			else {
+				// Draw the new selected color in the center.
+				canvas.drawArc(mCenterRectangle, 0, 360, true, mCenterNewPaint);
+			}
 		}
-		else {
-			// Draw the new selected color in the center.
-			canvas.drawArc(mCenterRectangle, 0, 360, true, mCenterNewPaint);
-		}
+
 	}
 
 	@Override
@@ -489,22 +510,17 @@ public class ColorPicker extends View {
 	 * @return The ARGB value of the color on the color wheel at the specified
 	 *         angle.
 	 */
-
-
-
-	private int calculateColor(float angle, int prevColor) {
+	private int setHueFromAngleRGB(float angle, int prevColor) {
 		float unit = (float) (angle / (2 * Math.PI));
 		if (unit < 0) {
 			unit += 1;
 		}
 
 		if (unit <= 0) {
-			mColor = calculateHueColorHelper(prevColor, COLORS[0]);
-			return mColor;
+			return calculateHueColorHelper(prevColor, COLORS[0]);
 		}
 		if (unit >= 1) {
-			mColor = calculateHueColorHelper(prevColor, COLORS[COLORS.length - 1]);
-			return mColor;
+			return calculateHueColorHelper(prevColor, COLORS[COLORS.length - 1]);
 		}
 
 		float p = unit * (COLORS.length - 1);
@@ -518,9 +534,16 @@ public class ColorPicker extends View {
 		int g = ave(Color.green(c0), Color.green(c1), p);
 		int b = ave(Color.blue(c0), Color.blue(c1), p);
 
-		mColor = calculateHueColorHelper(prevColor, Color.argb(a, r, g, b));
-		return mColor;
+		return calculateHueColorHelper(prevColor, Color.argb(a, r, g, b));
 	}
+
+	private float[] setHueFromAngleHSV(float angle, float[] color){
+	    float degrees = - (float) Math.toDegrees((double)angle);
+	    float hue = degrees;
+	    if (degrees < 0) hue = degrees + 360;
+	    color[0] = hue;
+	    return color;
+    }
 
 	/**
 	 * Get the currently selected color.
@@ -542,64 +565,42 @@ public class ColorPicker extends View {
 	 *            won't look close to the original color. This is especially
 	 *            true for shades of grey. You have been warned!
 	 */
-	public void setColor(int color, String source) {
-		mAngle = colorToAngle(color);
-		mPointerColor.setColor(calculateColor(mAngle, color));
+	public void setColor(int alpha, float[] color, int source) {
 
-		// check of the instance isn't null
-		if (mOpacityBar != null) {
-			// set the value of the opacity
-			mOpacityBar.setColor(color, source);
-			mOpacityBar.setOpacity(Color.alpha(color), source);
-		}
+        // A-HSV handling
+        mAlpha = alpha;
+        mHSV   = color;
+	    mAngle = (float) Math.toRadians(-color[0]);
 
-		// check if the instance isn't null
-		if (mSVbar != null) {
-			// the array mHSV will be filled with the HSV values of the color.
-			Color.colorToHSV(color, mHSV);
-			mSVbar.setColor(color, source);
+	    // Update Visuals
+	    int rgbCol = Color.HSVToColor(alpha, color);
+		mPointerColor.setColor(rgbCol);
+        setNewCenterColor(rgbCol);
 
-			// because of the design of the Saturation/Value bar,
-			// we can only use Saturation or Value every time.
-			// Here will be checked which we shall use.
-			if (mHSV[1] < mHSV[2]) {
-				mSVbar.setSaturation(mHSV[1]);
-			} else if(mHSV[1] > mHSV[2]){
-				mSVbar.setValue(mHSV[2]);
+        // Communicate
+			if (mOpacityBar != null & source != SOURCE_OPACITY) {
+				mOpacityBar.initializeColor(alpha, color);
 			}
-		}
 
-		if (mSaturationBar != null) {
-			Color.colorToHSV(color, mHSV);
-			mSaturationBar.setColor(color, source);
-			mSaturationBar.setSaturation(mHSV[1]);
-		}
+			if (mSaturationBar != null & source != SOURCE_SATURATION) {
+				mSaturationBar.initializeColor(alpha, color);
+			}
 
-		if (mValueBar != null && mSaturationBar == null) {
-			Color.colorToHSV(color, mHSV);
-			mValueBar.setColor(color, source);
-			mValueBar.setValue(mHSV[2]);
-		} else if (mValueBar != null) {
-			Color.colorToHSV(color, mHSV);
-			mValueBar.setValue(mHSV[2]);
-		}
-        setNewCenterColor(color);
+			if (mValueBar != null & source != SOURCE_VALUE) {
+				mValueBar.initializeColor(alpha, color);
+			}
+
+
 	}
 
-	/**
-	 * Convert a color to an angle.
-	 * 
-	 * @param color The RGB value of the color to "find" on the color wheel.
-	 * 
-	 * @return The angle (in rad) the "normalized" color is displayed on the
-	 *         color wheel.
-	 */
-	private float colorToAngle(int color) {
-		float[] colors = new float[3];
-		Color.colorToHSV(color, colors);
-		
-		return (float) Math.toRadians(-colors[0]);
-	}
+
+	public void initializeColor(int argb, int source){
+	    float[] hsv = new float[3];
+	    Color.colorToHSV(argb, hsv);
+	    setColor(alpha(argb), hsv, source);
+    }
+
+
 
 	@Override
 	public boolean onTouchEvent(MotionEvent event) {
@@ -627,7 +628,7 @@ public class ColorPicker extends View {
 					&& y >= -mColorCenterRadius && y <= mColorCenterRadius
 					&& mShowCenterOldColor) {
 				mCenterHaloPaint.setAlpha(0x50);
-				setColor(getOldCenterColor(), IDENTITY);
+				setColor(mAlpha, getOldCenterColorHSV(), SOURCE_PICKER);
 				invalidate();
 			}
                         // Check whether the user pressed anywhere on the wheel.
@@ -646,12 +647,10 @@ public class ColorPicker extends View {
 		case MotionEvent.ACTION_MOVE:
 			if (mUserIsMovingPointer) {
 				mAngle = (float) Math.atan2(y - mSlopY, x - mSlopX);
-				calculateColor(mAngle, mColor);
-				mPointerColor.setColor(mColor);
-
-				setNewCenterColor(mCenterNewColor = mColor);
+				mHSV = setHueFromAngleHSV(mAngle, mHSV);
+				setNewCenterColor(mCenterNewColor = Color.HSVToColor(mAlpha, mHSV));
 				
-				setColor(mColor, IDENTITY); //
+				setColor(mAlpha, mHSV, SOURCE_PICKER);
 
 				invalidate();
 			}
@@ -698,17 +697,6 @@ public class ColorPicker extends View {
 		return new float[] { x, y };
 	}
 
-	/**
-	 * Add a Saturation/Value bar to the color wheel.
-	 * 
-	 * @param bar The instance of the Saturation/Value bar.
-	 */
-	public void addSVBar(SVBar bar) {
-		mSVbar = bar;
-		// Give an instance of the color picker to the Saturation/Value bar.
-		mSVbar.setColorPicker(this);
-		mSVbar.setColor(mColor, IDENTITY);
-	}
 
 	/**
 	 * Add a Opacity bar to the color wheel.
@@ -719,19 +707,19 @@ public class ColorPicker extends View {
 		mOpacityBar = bar;
 		// Give an instance of the color picker to the Opacity bar.
 		mOpacityBar.setColorPicker(this);
-		mOpacityBar.setColor(mColor, IDENTITY); // TODO: this could be problematic because it comes from the outside???
+		mOpacityBar.initializeColor(mAlpha, mHSV);
 	}
 
 	public void addSaturationBar(SaturationBar bar) {
 		mSaturationBar = bar;
 		mSaturationBar.setColorPicker(this);
-		mSaturationBar.setColor(mColor, IDENTITY);
+		mSaturationBar.initializeColor(mAlpha, mHSV);
 	}
 
 	public void addValueBar(ValueBar bar) {
 		mValueBar = bar;
 		mValueBar.setColorPicker(this);
-		mValueBar.setColor(mColor, IDENTITY);
+		mValueBar.initializeColor(mAlpha, mHSV);
 	}
 
 	/**
@@ -764,6 +752,12 @@ public class ColorPicker extends View {
 		invalidate();
 	}
 
+	public float[] getOldCenterColorHSV(){
+	    float[] hsv = new float[3];
+	    Color.colorToHSV(getOldCenterColor(), hsv);
+	    return  hsv;
+    }
+
 	public int getOldCenterColor() {
 		return mCenterOldColor;
 	}
@@ -782,21 +776,15 @@ public class ColorPicker extends View {
 		return mShowCenterOldColor;
 	}
 
+	public void setShowCenter(boolean show) {
+		mShowCenter = show;
+		invalidate();
+	}
 
+	public boolean getShowCenter() {
+		return mShowCenter;
+	}
 
-	public void changeAllColors(int color, String source) { // TODO; deprecate! setColor does it better
-        mColor = color;
-		setNewCenterColor(color);
-        if (mSaturationBar != null && source != mSaturationBar.IDENTITY) {
-            mSaturationBar.setColor(color, source);
-        }
-        if (mOpacityBar != null  && source != mOpacityBar.IDENTITY) {
-            mOpacityBar.setColor(color, source);
-        }
-        if (mValueBar != null  && source != mValueBar.IDENTITY) {
-            mValueBar.setColor(color, source);
-        }
-    }
 	
 	/**
 	 * Checks if there is an {@code OpacityBar} connected.
@@ -824,15 +812,7 @@ public class ColorPicker extends View {
 	public boolean hasSaturationBar(){
 		return mSaturationBar != null;
 	}
-	
-	/**
-	 * Checks if there is a {@code SVBar} connected.
-	 * 
-	 * @return true or false.
-	 */
-	public boolean hasSVBar(){
-		return mSVbar != null;
-	}
+
 
 	@Override
 	protected Parcelable onSaveInstanceState() {
@@ -841,6 +821,8 @@ public class ColorPicker extends View {
 		Bundle state = new Bundle();
 		state.putParcelable(STATE_PARENT, superState);
 		state.putFloat(STATE_ANGLE, mAngle);
+		state.putInt(STATE_ALPHA, mAlpha);
+        state.putFloatArray(STATE_HSV, mHSV);
 		state.putInt(STATE_OLD_COLOR, mCenterOldColor);
 		state.putBoolean(STATE_SHOW_OLD_COLOR, mShowCenterOldColor);
 
@@ -857,7 +839,9 @@ public class ColorPicker extends View {
 		mAngle = savedState.getFloat(STATE_ANGLE);
 		setOldCenterColor(savedState.getInt(STATE_OLD_COLOR));
 		mShowCenterOldColor = savedState.getBoolean(STATE_SHOW_OLD_COLOR);
-		int currentColor = calculateColor(mAngle, mColor);
+		mAlpha = savedState.getInt(STATE_ALPHA);
+		mHSV = savedState.getFloatArray(STATE_HSV);
+		int currentColor = Color.HSVToColor(mHSV);
 		mPointerColor.setColor(currentColor);
 		setNewCenterColor(currentColor);
 	}
@@ -869,4 +853,9 @@ public class ColorPicker extends View {
         public boolean getTouchAnywhereOnColorWheel(){
                 return mTouchAnywhereOnColorWheelEnabled;
         }
+
+
+    private void logHSV(String source, float[] mHSVColor){
+        Log.d(TAG, source + ": "+mHSVColor[0]+"/"+mHSVColor[1]+"/"+mHSVColor[2]);
+    }
 }
