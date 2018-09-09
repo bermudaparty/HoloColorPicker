@@ -48,10 +48,6 @@ public class OmniBar extends View {
 	 */
 	private int mType;
 
-	public void setType(int type){
-		mType = type;
-	}
-
 	/**
 	 * Constants used to identify orientation.
 	 */
@@ -195,6 +191,8 @@ public class OmniBar extends View {
 		final TypedArray a = getContext().obtainStyledAttributes(attrs,
 				R.styleable.ColorBars, defStyle, 0);
 		final Resources b = getContext().getResources();
+
+		mType = a.getInt(R.styleable.ColorBars_bar_type, ColorPicker.TYPE_SATURATION);
 
 		mBarThickness = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_thickness,

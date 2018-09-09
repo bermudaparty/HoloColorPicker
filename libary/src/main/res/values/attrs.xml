@@ -15,6 +15,7 @@
         <attr name="bar_pointer_radius" format="dimension" />
         <attr name="bar_pointer_halo_radius" format="dimension" />
         <attr name="bar_orientation_horizontal" format="boolean" />
+        <attr name="bar_type" format="integer" />
     </declare-styleable>
 
 </resources>
