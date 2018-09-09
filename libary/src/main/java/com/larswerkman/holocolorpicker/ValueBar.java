@@ -116,14 +116,12 @@ public class ValueBar extends View {
 	private boolean mIsMovingPointer;
 
 	/**
-	 * The ARGB value of the currently selected color.
+	 * The alpha value of the currently selected color.
 	 */
-	//private int mColor;
-
     private int mAlpha;
 
 	/**
-	 * An array of floats that can be build into a {@code Color} <br>
+	 * An array of floats that can be built into a {@code Color} <br>
 	 * Where we can extract the color from.
 	 */
 	private float[] mHSVColor = new float[3];
@@ -220,7 +218,7 @@ public class ValueBar extends View {
 		mBarPointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mBarPointerPaint.setColor(0xff81ff00);
 
-		mPosToSatFactor = 1 / ((float) mBarLength); // TODO there should be only one of these and the other should just be called by 1/ this would allow calculation both ways?
+		mPosToSatFactor = 1 / ((float) mBarLength);
 		mValToPosFactor = ((float) mBarLength) / 1;
 	}
 
@@ -291,14 +289,16 @@ public class ValueBar extends View {
 		// Update variables that depend of mBarLength.
 		if (!isInEditMode()) {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
-					x1, y1,
-					new int[] {Color.BLACK, Color.HSVToColor(0xFF, mHSVColor)}, // TODO here the colors should be dynamic as well ++ reverse
+					x1, y1,	new int[] {
+							Color.BLACK,
+							Color.HSVToColor(0xFF, mHSVColor)}, // TODO Reverse ?
 					null, Shader.TileMode.CLAMP);
 		} else {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
-					x1, y1,
-					new int[] {Color.BLACK, 0xff81ff00}, null, // TODO reverse
-					Shader.TileMode.CLAMP);
+					x1, y1, new int[] {
+							Color.BLACK,
+							0xff81ff00}, // TODO Reverse
+					null, Shader.TileMode.CLAMP);
 			Color.colorToHSV(0xff81ff00, mHSVColor);
 		}
 
@@ -308,10 +308,10 @@ public class ValueBar extends View {
 
 		if (!isInEditMode()) {
 			mBarPointerPosition = Math
-					.round((mBarLength - (mValToPosFactor * mHSVColor[2]))
+					.round((mBarLength - (mValToPosFactor * mHSVColor[2])) // TODO reverse?
 							+ mBarPointerHaloRadius);
 		} else {
-			mBarPointerPosition = mBarPointerHaloRadius;
+			mBarPointerPosition = mBarPointerHaloRadius; // TODO Reverse
 		}
 	}
 
@@ -364,18 +364,23 @@ public class ValueBar extends View {
 		case MotionEvent.ACTION_MOVE:
 			if (mIsMovingPointer) {
 				// Move the the pointer on the bar.
+				// Touch Event happens on the bar inside the end points
 				if (dimen >= mBarPointerHaloRadius
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
 					setColor(mHSVColor);
 					invalidate();
+					
+				// Touch event happens on the start point or to the left of it.
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
 					setHsvValue(mHSVColor, 0);
                     setColor(mHSVColor);
 					invalidate();
-				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
+					
+                // Touch event happens to the right of the end point
+				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {      // TODO reverse?
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
 					setHsvValue(mHSVColor, 1);
                     setColor(mHSVColor);
@@ -395,17 +400,17 @@ public class ValueBar extends View {
 		}
 		return true;
 	}
-
-	private void setColor(float[] color){
-		setColor(color, false);
-	}
-
+	
 	public void initializeColor(int alpha, float[] color){
 	    mAlpha = alpha;
         mBarPointerPosition = Math
                 .round(((mValToPosFactor * color[2]))
                         + mBarPointerHaloRadius);
 		setColor(color, true);
+	}
+
+	private void setColor(float[] color){
+		setColor(color, false);
 	}
 
 	private void setColor(float[] color, boolean initialize) {
@@ -421,33 +426,40 @@ public class ValueBar extends View {
 		mHSVColor = color;
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
-						getDisplayColor(color, 0), getDisplayColor(color, 1) }, null, Shader.TileMode.CLAMP); // TODO rverse
+						getDisplayColor(color, 0),
+						getDisplayColor(color, 1) },
+				null, Shader.TileMode.CLAMP); // TODO rverse ?
 		mBarPaint.setShader(shader);
 
-
 		mBarPointerPaint.setColor(getDisplayColor(color));
+		
         if (!initialize){
             if (mPicker != null) {
-                mPicker.setColor(mAlpha, mHSVColor, ColorPicker.SOURCE_VALUE);
+                mPicker.setColor(mAlpha,
+								 mHSVColor,
+								 ColorPicker.TYPE_VALUE);
             }
         }
 		invalidate();
 	}
-
-
+ 
 
     private void setHsvValue (float[] color, float value){
         color[2] = value;
         mHSVColor = color;
     }
 
-    private int getDisplayColor (float[] color, float value){
-        return Color.HSVToColor(mAlpha, new float[] { color[0], color[1], value });
-    }
-
     private int getDisplayColor (float[] color){
         return getDisplayColor(color, color[2]);
     }
+	
+    private int getDisplayColor (float[] color, float value){
+        return Color.HSVToColor(mAlpha,
+								new float[] {color[0],
+											 color[1],
+											 value });
+    }
+
 
 
 

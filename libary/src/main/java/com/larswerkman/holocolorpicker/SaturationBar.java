@@ -51,7 +51,6 @@ public class SaturationBar extends View {
 	private static final boolean ORIENTATION_HORIZONTAL = true;
 	private static final boolean ORIENTATION_VERTICAL = false;
 
-
 	/**
 	 * Default orientation of the bar.
 	 */
@@ -116,19 +115,16 @@ public class SaturationBar extends View {
 	 */
 	private boolean mIsMovingPointer;
 
+	/**
+	 * The alpha value of the currently selected color.
+	 */
 	private int mAlpha;
 
 	/**
-	 * The ARGB value of the currently selected color.
-	 */
-	//private int mColor;
-
-	/**
-	 * An array of floats that can be build into a {@code Color} <br>
+	 * An array of floats that can be built into a {@code Color} <br>
 	 * Where we can extract the color from.
 	 */
 	private float[] mHSVColor = new float[3];
-
 
 	/**
 	 * Factor used to calculate the position to the Saturation on the bar.
@@ -220,7 +216,7 @@ public class SaturationBar extends View {
 		mBarPointerHaloPaint.setAlpha(0x50);
 
 		mBarPointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-		mBarPointerPaint.setColor(0xff81ff00); // TODO: set color dynamically? ja, das ist das grün welches am anfang immer ist. aber muss ich das hier setzen oder später? nein das kann ich setzen wenn ich das Fenster von extern aufrufe
+		mBarPointerPaint.setColor(0xff81ff00);
 
 		mPosToSatFactor = 1 / ((float) mBarLength);
 		mSatToPosFactor = ((float) mBarLength) / 1;
@@ -295,12 +291,14 @@ public class SaturationBar extends View {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1, new int[] {
 							Color.WHITE,
-							Color.HSVToColor(0xFF, mHSVColor) }, null,
-					Shader.TileMode.CLAMP);
+							Color.HSVToColor(0xFF, mHSVColor) },
+					null, Shader.TileMode.CLAMP);
 		} else {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1, new int[] {
-							Color.WHITE, 0xff81ff00 }, null, Shader.TileMode.CLAMP);
+							Color.WHITE,
+							0xff81ff00 },
+					null, Shader.TileMode.CLAMP);
 			Color.colorToHSV(0xff81ff00, mHSVColor);
 		}
 		
@@ -309,8 +307,9 @@ public class SaturationBar extends View {
 		mSatToPosFactor = ((float) mBarLength) / 1;
 		
 		if (!isInEditMode()){
-			mBarPointerPosition = Math.round((mSatToPosFactor * mHSVColor[1])
-					+ mBarPointerHaloRadius);
+			mBarPointerPosition = Math
+					.round((mSatToPosFactor * mHSVColor[1])
+						+ mBarPointerHaloRadius);
 		} else {
 			mBarPointerPosition = mBarLength + mBarPointerHaloRadius;
 		}
@@ -365,7 +364,6 @@ public class SaturationBar extends View {
 		case MotionEvent.ACTION_MOVE:
 			if (mIsMovingPointer) {
 				// Move the the pointer on the bar.
-
 				// Touch Event happens on the bar inside the end points
 				if (dimen >= mBarPointerHaloRadius
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
@@ -381,7 +379,7 @@ public class SaturationBar extends View {
                     setColor(mHSVColor);
                     invalidate();
 
-                // Touch event happens to the right of the end point TODO this calculation's different from the other end point. shouldn't it be minus here?
+                // Touch event happens to the right of the end point
 				} else if (dimen > (mBarPointerHaloRadius - mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
 					setSaturation(mHSVColor, 1);
@@ -403,19 +401,17 @@ public class SaturationBar extends View {
 		return true;
 	}
 
-    private void setColor(float[] color){
-        setColor(color, false);
-    }
-
     public void initializeColor(int alpha, float[] color){
 	    mAlpha = alpha;
         mBarPointerPosition = Math
                 .round(((mSatToPosFactor * color[1]))
                         + mBarPointerHaloRadius);
-
         setColor(color, true);
     }
-
+	
+    private void setColor(float[] color){
+        setColor(color, false);
+    }
 
 	private void setColor(float[] color, boolean initialize) {
 		int x1, y1;
@@ -430,36 +426,44 @@ public class SaturationBar extends View {
 		mHSVColor = color;
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
-				getDisplayColor(color, 0), getDisplayColor(color, 1) }, null,
-				Shader.TileMode.CLAMP);
+						getDisplayColor(color, 0),
+						getDisplayColor(color, 1) },
+				null, Shader.TileMode.CLAMP);
 		mBarPaint.setShader(shader);
 
 		mBarPointerPaint.setColor(getDisplayColor(color));
 
         if (!initialize){
             if (mPicker != null) {
-                mPicker.setColor(mAlpha, mHSVColor, ColorPicker.SOURCE_SATURATION);
+                mPicker.setColor(mAlpha,
+								 mHSVColor,
+								 ColorPicker.TYPE_SATURATION);
             }
         }
 		invalidate();
 	}
-
-
-	private int getDisplayColor (float[] color, float saturation){
-		return Color.HSVToColor(mAlpha, new float[] { color[0],
-				saturation, color[2] });
-	}
-
+	
+	
+	private void setSaturation(float[] color, float saturation){
+		color[1] = saturation;
+		mHSVColor = color;
+    }
+	
 	private int getDisplayColor (float[] color){
 		return getDisplayColor(color, color[1]);
 	}
 
+	private int getDisplayColor (float[] color, float saturation){
+		return Color.HSVToColor(mAlpha,
+								new float[] {color[0],
+											 saturation,
+											 color[2] });
+	}
 
 
-	private void setSaturation(float[] color, float saturation){
-        color[1] = saturation;
-        mHSVColor = color;
-    }
+
+
+
 
         /**
          * Calculate the color selected by the pointer on the bar.
