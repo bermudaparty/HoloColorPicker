@@ -433,7 +433,7 @@ public class OpacityBar extends View {
 
 		if (!initialize){
 			if (mPicker != null) {
-				mPicker.setColor(mAlpha, mHSVColor, ColorPicker.SOURCE_OPACITY);
+				mPicker.setColor(mAlpha, mHSVColor, ColorPicker.TYPE_OPACITY);
 			}
 		}
 		invalidate();
