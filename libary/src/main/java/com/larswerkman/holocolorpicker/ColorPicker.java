@@ -63,13 +63,13 @@ public class ColorPicker extends View {
 
 
 	/*
-	* Sources
+	* Sources / Types
 	 */
-	public static final int SOURCE_OUTSIDE = -1;
-    public static final int SOURCE_OPACITY = 0;
-	public static final int SOURCE_PICKER = 1;
-    public static final int SOURCE_SATURATION = 2;
-    public static final int SOURCE_VALUE = 3;
+	public static final int SOURCE_OUTSIDE = -2;
+    public static final int TYPE_OPACITY = -1;
+	public static final int TYPE_PICKER = 0;
+    public static final int TYPE_SATURATION = 1;
+    public static final int TYPE_VALUE = 2;
 
 
 	/**
@@ -578,15 +578,15 @@ public class ColorPicker extends View {
         setNewCenterColor(rgbCol);
 
         // Communicate
-			if (mOpacityBar != null & source != SOURCE_OPACITY) {
+			if (mOpacityBar != null & source != TYPE_OPACITY) {
 				mOpacityBar.initializeColor(alpha, color);
 			}
 
-			if (mSaturationBar != null & source != SOURCE_SATURATION) {
+			if (mSaturationBar != null & source != TYPE_SATURATION) {
 				mSaturationBar.initializeColor(alpha, color);
 			}
 
-			if (mValueBar != null & source != SOURCE_VALUE) {
+			if (mValueBar != null & source != TYPE_VALUE) {
 				mValueBar.initializeColor(alpha, color);
 			}
 
@@ -628,7 +628,7 @@ public class ColorPicker extends View {
 					&& y >= -mColorCenterRadius && y <= mColorCenterRadius
 					&& mShowCenterOldColor) {
 				mCenterHaloPaint.setAlpha(0x50);
-				setColor(mAlpha, getOldCenterColorHSV(), SOURCE_PICKER);
+				setColor(mAlpha, getOldCenterColorHSV(), TYPE_PICKER);
 				invalidate();
 			}
                         // Check whether the user pressed anywhere on the wheel.
@@ -650,7 +650,7 @@ public class ColorPicker extends View {
 				mHSV = setHueFromAngleHSV(mAngle, mHSV);
 				setNewCenterColor(mCenterNewColor = Color.HSVToColor(mAlpha, mHSV));
 				
-				setColor(mAlpha, mHSV, SOURCE_PICKER);
+				setColor(mAlpha, mHSV, TYPE_PICKER);
 
 				invalidate();
 			}
