@@ -48,6 +48,10 @@ public class OmniBar extends View {
 	 */
 	private int mType;
 
+	public void setType(int type){
+		mType = type;
+	}
+
 	/**
 	 * Constants used to identify orientation.
 	 */
@@ -172,27 +176,25 @@ public class OmniBar extends View {
         return this.onOmniChangedListener;
     }
 
-	public OmniBar(Context context, int type) {
+	public OmniBar(Context context) {
 		super(context);
-		init(type,null, 0);
+		init(null, 0);
 	}
 
-	public OmniBar(int type, Context context, AttributeSet attrs) {
+	public OmniBar(Context context, AttributeSet attrs) {
 		super(context, attrs);
-		init(type, attrs, 0);
+		init(attrs, 0);
 	}
 
-	public OmniBar(int type, Context context, AttributeSet attrs, int defStyle) {
+	public OmniBar(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
-		init(type, attrs, defStyle);
+		init(attrs, defStyle);
 	}
 
-	private void init(int type, AttributeSet attrs, int defStyle) {
+	private void init(AttributeSet attrs, int defStyle) {
 		final TypedArray a = getContext().obtainStyledAttributes(attrs,
 				R.styleable.ColorBars, defStyle, 0);
 		final Resources b = getContext().getResources();
-
-		mType = type;
 
 		mBarThickness = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_thickness,

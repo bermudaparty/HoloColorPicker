@@ -236,7 +236,7 @@ public class ColorPicker extends View {
 	/**
 	 * {@code SaturationBar} instance used to control the Saturation bar.
 	 */
-	private SaturationBar mSaturationBar = null;
+	private OmniBar mSaturationBar = null;
 
         /**
          * {@code TouchAnywhereOnColorWheelEnabled} instance used to control <br>
@@ -710,7 +710,7 @@ public class ColorPicker extends View {
 		mOpacityBar.initializeColor(mAlpha, mHSV);
 	}
 
-	public void addSaturationBar(SaturationBar bar) {
+	public void addSaturationBar(OmniBar bar) {
 		mSaturationBar = bar;
 		mSaturationBar.setColorPicker(this);
 		mSaturationBar.initializeColor(mAlpha, mHSV);
