@@ -48,6 +48,10 @@ public class OmniBar extends View {
 	 */
 	private int mType;
 
+	public int getType(){
+		return  mType;
+	}
+
 	/**
 	 * Constants used to identify orientation.
 	 */
@@ -158,10 +162,10 @@ public class OmniBar extends View {
 	/**
 	 * Omni-Value of the latest entry of the onOmniChangedListener.
 	 */
-	private int oldChangedListenerSaturation;
+	private int oldChangedListenerColor;
 
     public interface OnOmniChangedListener {
-        void onSaturationChanged(int saturation);
+        void onOmniChanged(int omni);
     }
 
     public void setOnOmniChangedListener(OnOmniChangedListener listener) {
@@ -190,22 +194,31 @@ public class OmniBar extends View {
 	private void init(AttributeSet attrs, int defStyle) {
 		final TypedArray a = getContext().obtainStyledAttributes(attrs,
 				R.styleable.ColorBars, defStyle, 0);
-		final Resources b = getContext().getResources();
+		final TypedArray b = getContext().obtainStyledAttributes(attrs,
+				R.styleable.OmniBar, defStyle, 0);
+		final Resources c = getContext().getResources();
 
-		mType = a.getInt(R.styleable.ColorBars_bar_type, ColorPicker.TYPE_SATURATION);
+		int type = b.getInt(R.styleable.OmniBar_bar_type, ColorPicker.SOURCE_OUTSIDE);
+		if(type == ColorPicker.TYPE_SATURATION || type == ColorPicker.TYPE_VALUE){
+			mType = type;
+		} else {
+			Log.w(TAG, "assign 'bar_type' in XML Layout, OmniBar otherwise inoperable");
+		}
+
+		b.recycle();
 
 		mBarThickness = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_thickness,
-				b.getDimensionPixelSize(R.dimen.bar_thickness));
+				c.getDimensionPixelSize(R.dimen.bar_thickness));
 		mBarLength = a.getDimensionPixelSize(R.styleable.ColorBars_bar_length,
-				b.getDimensionPixelSize(R.dimen.bar_length));
+				c.getDimensionPixelSize(R.dimen.bar_length));
 		mPreferredBarLength = mBarLength;
 		mBarPointerRadius = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_pointer_radius,
-				b.getDimensionPixelSize(R.dimen.bar_pointer_radius));
+				c.getDimensionPixelSize(R.dimen.bar_pointer_radius));
 		mBarPointerHaloRadius = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_pointer_halo_radius,
-				b.getDimensionPixelSize(R.dimen.bar_pointer_halo_radius));
+				c.getDimensionPixelSize(R.dimen.bar_pointer_halo_radius));
 		mOrientation = a.getBoolean(
 				R.styleable.ColorBars_bar_orientation_horizontal, ORIENTATION_DEFAULT);
 
@@ -362,7 +375,7 @@ public class OmniBar extends View {
 			if (dimen >= (mBarPointerHaloRadius)
 					&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 				mBarPointerPosition = Math.round(dimen);
-				setOmniValueFromCoord(mHSVColor, dimen);
+				setOmniValueFromCoord(dimen);
 				invalidate();
 			}
 			break;
@@ -373,29 +386,29 @@ public class OmniBar extends View {
 				if (dimen >= mBarPointerHaloRadius
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = Math.round(dimen);
-					setOmniValueFromCoord(mHSVColor, dimen);
+					setOmniValueFromCoord(dimen);
 					setColor(mHSVColor);
 					invalidate();
 
 				// Touch event happens on the start point or to the left of it.
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					setOmniValue(mHSVColor, 0);
-                    setColor(mHSVColor);
+					setOmniValue(0);
+					setColor(mHSVColor);
                     invalidate();
 
                 // Touch event happens to the right of the end point
 				} else if (dimen > (mBarPointerHaloRadius - mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
-					setOmniValue(mHSVColor, 1);
+					setOmniValue(1);
                     setColor(mHSVColor);
                     invalidate();
 				}
 			}
 			int rgbCol = getDisplayColor(mHSVColor);
-			if(onOmniChangedListener != null && oldChangedListenerSaturation != rgbCol){
-	            onOmniChangedListener.onSaturationChanged(rgbCol);
-	            oldChangedListenerSaturation = rgbCol;
+			if(onOmniChangedListener != null && oldChangedListenerColor != rgbCol){
+	            onOmniChangedListener.onOmniChanged(rgbCol);
+	            oldChangedListenerColor = rgbCol;
 			}
 
 			break;
@@ -428,7 +441,8 @@ public class OmniBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		mHSVColor = color;
+		System.arraycopy(color, 0, mHSVColor, 0, 3);
+
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
 				x1, y1, new int[] {
 						getDisplayColor(color, 0),
@@ -437,7 +451,6 @@ public class OmniBar extends View {
 		mBarPaint.setShader(shader);
 
 		mBarPointerPaint.setColor(getDisplayColor(color));
-
         if (!initialize){
             if (mPicker != null) {
                 mPicker.setColor(mAlpha,
@@ -449,18 +462,20 @@ public class OmniBar extends View {
 	}
 	
 	
-	private void setOmniValue(float[] color, float omni){
-		color[mType] = omni;
-		mHSVColor = color;
-    }
+	private void setOmniValue(float omni){
+    	mHSVColor[mType] = omni;
+	}
 	
 	private int getDisplayColor (float[] color){
 		return getDisplayColor(color, color[mType]);
 	}
 
 	private int getDisplayColor (float[] color, float omni){
-    	color[mType] = omni;
-		return Color.HSVToColor(mAlpha, color);
+		float[] col = new float[3];
+		System.arraycopy(color, 0, col, 0, 3);
+		col[mType] = omni;
+		int rgbColor = Color.HSVToColor(mAlpha, col);
+		return rgbColor;
 	}
 
 
@@ -469,7 +484,7 @@ public class OmniBar extends View {
          * 
          * @param coord Coordinate of the pointer.
          */
-	private void setOmniValueFromCoord(float[] color, float coord) {
+	private void setOmniValueFromCoord(float coord) {
         coord = coord - mBarPointerHaloRadius;
 	    if (coord < 0) {
 	    	coord = 0;
@@ -477,7 +492,7 @@ public class OmniBar extends View {
 	    	coord = mBarLength;
 	    }
 	    float omni = mPosToOmniFactor * coord;
-	    setOmniValue(color, omni);
+	    setOmniValue(omni);
     }
 
 
@@ -515,4 +530,10 @@ public class OmniBar extends View {
 
 		initializeColor(savedState.getInt(STATE_ALPHA), savedState.getFloatArray(STATE_COLOR));
 	}
+
+	private void logHSV(String source, float[] mHSVColor){
+		Log.d(TAG, source + ": "+mHSVColor[0]+"/"+mHSVColor[1]+"/"+mHSVColor[2]);
+	}
+
+
 }

@@ -15,7 +15,13 @@
         <attr name="bar_pointer_radius" format="dimension" />
         <attr name="bar_pointer_halo_radius" format="dimension" />
         <attr name="bar_orientation_horizontal" format="boolean" />
-        <attr name="bar_type" format="integer" />
+    </declare-styleable>
+    <declare-styleable name="OmniBar">
+        <attr name="bar_type">
+            <enum name="opacity" value="-1" />
+            <enum name="saturation" value="1" />
+            <enum name="value" value="2" />
+        </attr>
     </declare-styleable>
 
 </resources>

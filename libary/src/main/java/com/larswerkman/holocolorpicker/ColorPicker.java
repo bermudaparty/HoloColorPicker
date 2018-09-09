@@ -248,7 +248,7 @@ public class ColorPicker extends View {
 	/**
 	 * {@code ValueBar} instance used to control the Value bar.
 	 */
-	private ValueBar mValueBar = null;
+	private OmniBar mValueBar = null;
 
 	/**
 	 * {@code onColorChangedListener} instance of the onColorChangedListener
@@ -582,11 +582,11 @@ public class ColorPicker extends View {
 				mOpacityBar.initializeColor(alpha, color);
 			}
 
-			if (mSaturationBar != null & source != TYPE_SATURATION) {
+			if (mSaturationBar != null & source != mSaturationBar.getType()) {
 				mSaturationBar.initializeColor(alpha, color);
 			}
 
-			if (mValueBar != null & source != TYPE_VALUE) {
+			if (mValueBar != null & source != mValueBar.getType()) {
 				mValueBar.initializeColor(alpha, color);
 			}
 
@@ -716,7 +716,7 @@ public class ColorPicker extends View {
 		mSaturationBar.initializeColor(mAlpha, mHSV);
 	}
 
-	public void addValueBar(ValueBar bar) {
+	public void addValueBar(OmniBar bar) {
 		mValueBar = bar;
 		mValueBar.setColorPicker(this);
 		mValueBar.initializeColor(mAlpha, mHSV);
