@@ -35,7 +35,7 @@ import com.larswerkman.holocolorpicker.R;
 
 public class OpacityBar extends View {
 
-    static final String IDENTITY = "opacityBar";
+    private  static  final  String TAG = "OpacityBar";
 
 
     /*
@@ -44,6 +44,7 @@ public class OpacityBar extends View {
 	private static final String STATE_PARENT = "parent";
 	private static final String STATE_COLOR = "color";
 	private static final String STATE_OPACITY = "opacity";
+    private static final String STATE_ALPHA = "alpha";
 	private static final String STATE_ORIENTATION = "orientation";
 	
 	/**
@@ -121,6 +122,7 @@ public class OpacityBar extends View {
 	 */
 	private int mColor;
 
+	private int mAlpha;
 	/**
 	 * An array of floats that can be build into a {@code Color} <br>
 	 * Where we can extract the color from.
@@ -149,7 +151,7 @@ public class OpacityBar extends View {
 	private int oldChangedListenerOpacity;
 
     public interface OnOpacityChangedListener {
-        public void onOpacityChanged(int opacity);
+        void onOpacityChanged(int opacity);
     }
 
     public void setOnOpacityChangedListener(OnOpacityChangedListener listener) {
@@ -370,20 +372,17 @@ public class OpacityBar extends View {
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = Math.round(dimen);
 					calculateColor(Math.round(dimen));
-					mBarPointerPaint.setColor(mColor);
-                    updateColors(IDENTITY);
+                    setColor(mColor);
                     invalidate();
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
 					mColor = lowerBoundColor(mHSVColor);
-					mBarPointerPaint.setColor(mColor);
-                    updateColors(IDENTITY);
+					setColor(mColor);
                     invalidate();
 				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
 					mColor = Color.HSVToColor(mHSVColor);
-					mBarPointerPaint.setColor(mColor);
-					updateColors(IDENTITY);
+					setColor(mColor);
 					invalidate();
 				}
 			}
@@ -399,14 +398,21 @@ public class OpacityBar extends View {
 		return true;
 	}
 
-	/**
-	 * Set the bar color. <br>
-	 * <br>
-	 * Its discouraged to use this method.
-	 * 
-	 * @param color
-	 */
-	public void setColor(int color, String source) {
+
+	private void setColor(int color){
+	    mAlpha = Color.alpha(color);
+		setColor(mHSVColor, false);
+	}
+
+	public void initializeColor(int alpha, float[] color){
+        mAlpha = alpha;
+        mBarPointerPosition = Math.round((mOpacToPosFactor * alpha))
+                + mBarPointerHaloRadius;
+		setColor(color, true);
+	}
+
+
+	private void setColor(float[] color, boolean initialize) {
 		int x1, y1;
 		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
@@ -416,31 +422,25 @@ public class OpacityBar extends View {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		mColor = color;
-		Color.colorToHSV(color, mHSVColor);
+		mColor = Color.HSVToColor(color);
+		mHSVColor = color;
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
-				x1, y1, new int[] {lowerBoundColor(mHSVColor), color }, null,
+				x1, y1, new int[] {lowerBoundColor(mHSVColor), mColor }, null,
 				Shader.TileMode.CLAMP);
 		mBarPaint.setShader(shader);
-		calculateColor(mBarPointerPosition);
+
 		mBarPointerPaint.setColor(mColor);
-		updateColors(source);
+
+		if (!initialize){
+			if (mPicker != null) {
+				mPicker.setColor(mAlpha, mHSVColor, ColorPicker.TYPE_OPACITY);
+			}
+		}
 		invalidate();
 	}
 
-	/**
-	 * Set the pointer on the bar. With the opacity value.
-	 * 
-	 * @param opacity float between 0 and 255
-	 */
-	public void setOpacity(int opacity, String source) {
-		mBarPointerPosition = Math.round((mOpacToPosFactor * opacity))
-				+ mBarPointerHaloRadius;
-		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		updateColors(source); // TODO this actually gets called from the color picker
-		invalidate();
-	}
+
+
 
 	/**
 	 * Get the currently selected opacity.
@@ -498,19 +498,13 @@ public class OpacityBar extends View {
 	 * <br>
 	 * WARNING: Don't change the color picker. it is done already when the bar
 	 * is added to the ColorPicker
-	 * 
-	 * @see com.larswerkman.holocolorpicker.ColorPicker#addSVBar(SVBar)
+	 *
 	 * @param picker
 	 */
 	public void setColorPicker(ColorPicker picker) {
 		mPicker = picker;
 	}
 
-    private void updateColors (String source) { // TODO: make a separate method without source
-        if (mPicker != null && source == IDENTITY) {
-            mPicker.changeAllColors(mColor, source);
-        }
-    }
 
     private int lowerBoundColor (float[] color) {
 		return Color.HSVToColor(0, // TODO: is 0 correct?
@@ -541,7 +535,6 @@ public class OpacityBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
-		setOpacity(savedState.getInt(STATE_OPACITY), IDENTITY);
+		initializeColor(savedState.getInt(STATE_OPACITY), savedState.getFloatArray(STATE_COLOR));
 	}
 }

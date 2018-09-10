@@ -28,30 +28,36 @@ import android.graphics.Shader;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.larswerkman.holocolorpicker.R;
+public class OmniBar extends View {
 
-public class SVBar extends View {
+	private static final String TAG = "omniBar";
 
-    static final String IDENTITY = "svBar";
-
-	/*
+    /*
 	 * Constants used to save/restore the instance state.
 	 */
 	private static final String STATE_PARENT = "parent";
 	private static final String STATE_COLOR = "color";
-	private static final String STATE_SATURATION = "saturation";
-	private static final String STATE_VALUE = "value";
-	private static final String STATE_ORIENTATION = "orientation";
-	
+	private static final String STATE_ALPHA = "alpha";
+
+	/*
+	 * Constant used to identify the type of bar
+	 */
+	private int mType;
+
+	public int getType(){
+		return  mType;
+	}
+
 	/**
 	 * Constants used to identify orientation.
 	 */
 	private static final boolean ORIENTATION_HORIZONTAL = true;
 	private static final boolean ORIENTATION_VERTICAL = false;
-	
+
 	/**
 	 * Default orientation of the bar.
 	 */
@@ -117,25 +123,25 @@ public class SVBar extends View {
 	private boolean mIsMovingPointer;
 
 	/**
-	 * The ARGB value of the currently selected color.
+	 * The alpha value of the currently selected color.
 	 */
-	private int mColor;
+	private int mAlpha;
 
 	/**
-	 * An array of floats that can be build into a {@code Color} <br>
-	 * Where we can extract the Saturation and Value from.
+	 * An array of floats that can be built into a {@code Color} <br>
+	 * Where we can extract the color from.
 	 */
 	private float[] mHSVColor = new float[3];
 
 	/**
-	 * Factor used to calculate the position to the Saturation/Value on the bar.
+	 * Factor used to calculate the position to the Omni-Value on the bar.
 	 */
-	private float mPosToSVFactor;
+	private float mPosToOmniFactor;
 
 	/**
-	 * Factor used to calculate the Saturation/Value to the postion on the bar.
+	 * Factor used to calculate the Omni-Value to the postion on the bar.
 	 */
-	private float mSVToPosFactor;
+	private float mOmniToPosFactor;
 
 	/**
 	 * {@code ColorPicker} instance used to control the ColorPicker.
@@ -146,18 +152,41 @@ public class SVBar extends View {
 	 * Used to toggle orientation between vertical and horizontal.
 	 */
 	private boolean mOrientation;
+	
+    /**
+     * Interface and listener so that changes in OmniBar are sent
+     * to the host activity/fragment
+     */
+    private OnOmniChangedListener onOmniChangedListener;
+    
+	/**
+	 * Omni-Value of the latest entry of the onOmniChangedListener.
+	 */
+	private int oldChangedListenerColor;
 
-	public SVBar(Context context) {
+    public interface OnOmniChangedListener {
+        void onOmniChanged(int omni);
+    }
+
+    public void setOnOmniChangedListener(OnOmniChangedListener listener) {
+        this.onOmniChangedListener = listener;
+    }
+
+    public OnOmniChangedListener getOnOmniChangedListener() {
+        return this.onOmniChangedListener;
+    }
+
+	public OmniBar(Context context) {
 		super(context);
 		init(null, 0);
 	}
 
-	public SVBar(Context context, AttributeSet attrs) {
+	public OmniBar(Context context, AttributeSet attrs) {
 		super(context, attrs);
 		init(attrs, 0);
 	}
 
-	public SVBar(Context context, AttributeSet attrs, int defStyle) {
+	public OmniBar(Context context, AttributeSet attrs, int defStyle) {
 		super(context, attrs, defStyle);
 		init(attrs, defStyle);
 	}
@@ -165,20 +194,31 @@ public class SVBar extends View {
 	private void init(AttributeSet attrs, int defStyle) {
 		final TypedArray a = getContext().obtainStyledAttributes(attrs,
 				R.styleable.ColorBars, defStyle, 0);
-		final Resources b = getContext().getResources();
+		final TypedArray b = getContext().obtainStyledAttributes(attrs,
+				R.styleable.OmniBar, defStyle, 0);
+		final Resources c = getContext().getResources();
+
+		int type = b.getInt(R.styleable.OmniBar_bar_type, ColorPicker.SOURCE_OUTSIDE);
+		if(type == ColorPicker.TYPE_SATURATION || type == ColorPicker.TYPE_VALUE){
+			mType = type;
+		} else {
+			Log.w(TAG, "assign 'bar_type' in XML Layout, OmniBar otherwise inoperable");
+		}
+
+		b.recycle();
 
 		mBarThickness = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_thickness,
-				b.getDimensionPixelSize(R.dimen.bar_thickness));
+				c.getDimensionPixelSize(R.dimen.bar_thickness));
 		mBarLength = a.getDimensionPixelSize(R.styleable.ColorBars_bar_length,
-				b.getDimensionPixelSize(R.dimen.bar_length));
+				c.getDimensionPixelSize(R.dimen.bar_length));
 		mPreferredBarLength = mBarLength;
 		mBarPointerRadius = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_pointer_radius,
-				b.getDimensionPixelSize(R.dimen.bar_pointer_radius));
+				c.getDimensionPixelSize(R.dimen.bar_pointer_radius));
 		mBarPointerHaloRadius = a.getDimensionPixelSize(
 				R.styleable.ColorBars_bar_pointer_halo_radius,
-				b.getDimensionPixelSize(R.dimen.bar_pointer_halo_radius));
+				c.getDimensionPixelSize(R.dimen.bar_pointer_halo_radius));
 		mOrientation = a.getBoolean(
 				R.styleable.ColorBars_bar_orientation_horizontal, ORIENTATION_DEFAULT);
 
@@ -187,7 +227,7 @@ public class SVBar extends View {
 		mBarPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mBarPaint.setShader(shader);
 
-		mBarPointerPosition = (mBarLength / 2) + mBarPointerHaloRadius;
+		mBarPointerPosition = mBarLength + mBarPointerHaloRadius;
 
 		mBarPointerHaloPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mBarPointerHaloPaint.setColor(Color.BLACK);
@@ -196,8 +236,8 @@ public class SVBar extends View {
 		mBarPointerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 		mBarPointerPaint.setColor(0xff81ff00);
 
-		mPosToSVFactor = 1 / ((float) mBarLength / 2);
-		mSVToPosFactor = ((float) mBarLength / 2) / 1;
+		mPosToOmniFactor = 1 / ((float) mBarLength);
+		mOmniToPosFactor = ((float) mBarLength) / 1;
 	}
 
 	@Override
@@ -259,40 +299,37 @@ public class SVBar extends View {
 			y1 = (mBarLength + mBarPointerHaloRadius);
 			mBarLength = h - (mBarPointerHaloRadius * 2);
 			mBarRect.set((mBarPointerHaloRadius - (mBarThickness / 2)),
-					mBarPointerHaloRadius,
+                    mBarPointerHaloRadius,
 					(mBarPointerHaloRadius + (mBarThickness / 2)),
 					(mBarLength + (mBarPointerHaloRadius)));
 		}
 
 		// Update variables that depend of mBarLength.
-		if(!isInEditMode()){
+		if (!isInEditMode()){
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1, new int[] {
-							0xffffffff, Color.HSVToColor(mHSVColor), 0xff000000 },
+							Color.WHITE,
+							Color.HSVToColor(0xFF, mHSVColor) },
 					null, Shader.TileMode.CLAMP);
 		} else {
 			shader = new LinearGradient(mBarPointerHaloRadius, 0,
 					x1, y1, new int[] {
-							0xffffffff, 0xff81ff00, 0xff000000 }, null,
-					Shader.TileMode.CLAMP);
+							Color.WHITE,
+							0xff81ff00 },
+					null, Shader.TileMode.CLAMP);
 			Color.colorToHSV(0xff81ff00, mHSVColor);
 		}
 		
 		mBarPaint.setShader(shader);
-		mPosToSVFactor = 1 / ((float) mBarLength / 2);
-		mSVToPosFactor = ((float) mBarLength / 2) / 1;
-		float[] hsvColor = new float[3];
-		Color.colorToHSV(mColor, hsvColor);
-		if (hsvColor[1] < hsvColor[2]) {
-			mBarPointerPosition = Math.round((mSVToPosFactor * hsvColor[1])
-					+ mBarPointerHaloRadius);
-		} else {
+		mPosToOmniFactor = 1 / ((float) mBarLength);
+		mOmniToPosFactor = ((float) mBarLength) / 1;
+		
+		if (!isInEditMode()){
 			mBarPointerPosition = Math
-					.round((mSVToPosFactor * (1 - hsvColor[2]))
-							+ mBarPointerHaloRadius + (mBarLength / 2));
-		}
-		if(isInEditMode()){
-			mBarPointerPosition = (mBarLength / 2) + mBarPointerHaloRadius;
+					.round((mOmniToPosFactor * mHSVColor[mType])
+						+ mBarPointerHaloRadius);
+		} else {
+			mBarPointerPosition = mBarLength + mBarPointerHaloRadius;
 		}
 	}
 
@@ -316,9 +353,9 @@ public class SVBar extends View {
 		canvas.drawCircle(cX, cY, mBarPointerHaloRadius, mBarPointerHaloPaint);
 		// Draw the pointer.
 		canvas.drawCircle(cX, cY, mBarPointerRadius, mBarPointerPaint);
-	};
+	}
 
-	@Override
+    @Override
 	public boolean onTouchEvent(MotionEvent event) {
 		getParent().requestDisallowInterceptTouchEvent(true);
 
@@ -334,39 +371,46 @@ public class SVBar extends View {
 		switch (event.getAction()) {
 		case MotionEvent.ACTION_DOWN:
 		    	mIsMovingPointer = true;
-			// Check whether the user pressed on the pointer
+			// Check whether the user pressed on (or near) the pointer
 			if (dimen >= (mBarPointerHaloRadius)
 					&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 				mBarPointerPosition = Math.round(dimen);
-				calculateColor(Math.round(dimen));
-				mBarPointerPaint.setColor(mColor);
+				setOmniValueFromCoord(dimen);
 				invalidate();
 			}
 			break;
 		case MotionEvent.ACTION_MOVE:
 			if (mIsMovingPointer) {
 				// Move the the pointer on the bar.
+				// Touch Event happens on the bar inside the end points
 				if (dimen >= mBarPointerHaloRadius
 						&& dimen <= (mBarPointerHaloRadius + mBarLength)) {
 					mBarPointerPosition = Math.round(dimen);
-					calculateColor(Math.round(dimen));
-					mBarPointerPaint.setColor(mColor);
-					updateColors(IDENTITY);
+					setOmniValueFromCoord(dimen);
+					setColor(mHSVColor);
 					invalidate();
+
+				// Touch event happens on the start point or to the left of it.
 				} else if (dimen < mBarPointerHaloRadius) {
 					mBarPointerPosition = mBarPointerHaloRadius;
-					mColor = Color.WHITE;
-					mBarPointerPaint.setColor(mColor);
-					updateColors(IDENTITY);
-					invalidate();
-				} else if (dimen > (mBarPointerHaloRadius + mBarLength)) {
+					setOmniValue(0);
+					setColor(mHSVColor);
+                    invalidate();
+
+                // Touch event happens to the right of the end point
+				} else if (dimen > (mBarPointerHaloRadius - mBarLength)) {
 					mBarPointerPosition = mBarPointerHaloRadius + mBarLength;
-					mColor = Color.BLACK;
-					mBarPointerPaint.setColor(mColor);
-					updateColors(IDENTITY);
-					invalidate();
+					setOmniValue(1);
+                    setColor(mHSVColor);
+                    invalidate();
 				}
 			}
+			int rgbCol = getDisplayColor(mHSVColor);
+			if(onOmniChangedListener != null && oldChangedListenerColor != rgbCol){
+	            onOmniChangedListener.onOmniChanged(rgbCol);
+	            oldChangedListenerColor = rgbCol;
+			}
+
 			break;
 		case MotionEvent.ACTION_UP:
 			mIsMovingPointer = false;
@@ -375,120 +419,95 @@ public class SVBar extends View {
 		return true;
 	}
 
-	/**
-	 * Set the pointer on the bar. With the saturation value.
-	 * 
-	 * @param saturation float between 0 and 1
-	 */
-	public void setSaturation(float saturation) {
-		mBarPointerPosition = Math.round((mSVToPosFactor * saturation)
-				+ mBarPointerHaloRadius);
-		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		// Check whether the Saturation/Value bar is added to the ColorPicker
-		// wheel
-		updateColors(IDENTITY);
-		invalidate();
-	}
+    public void initializeColor(int alpha, float[] color){
+	    mAlpha = alpha;
+        mBarPointerPosition = Math
+                .round(((mOmniToPosFactor * color[mType]))
+                        + mBarPointerHaloRadius);
+        setColor(color, true);
+    }
+	
+    private void setColor(float[] color){
+        setColor(color, false);
+    }
 
-	/**
-	 * Set the pointer on the bar. With the Value value.
-	 * 
-	 * @param value float between 0 and 1
-	 */
-	public void setValue(float value) {
-		mBarPointerPosition = Math.round((mSVToPosFactor * (1 - value))
-				+ mBarPointerHaloRadius + (mBarLength / 2));
-		calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		// Check whether the Saturation/Value bar is added to the ColorPicker
-		// wheel
-		updateColors(IDENTITY);
-		invalidate();
-	}
-
-	/**
-	 * Set the bar color. <br>
-	 * <br>
-	 * Its discouraged to use this method.
-	 * 
-	 * @param color
-	 */
-	public void setColor(int color, String source) {
+	private void setColor(float[] color, boolean initialize) {
 		int x1, y1;
-		if(mOrientation) {
+		if(mOrientation == ORIENTATION_HORIZONTAL) {
 			x1 = (mBarLength + mBarPointerHaloRadius);
 			y1 = mBarThickness;
-		}        else {
+		}
+		else {
 			x1 = mBarThickness;
 			y1 = (mBarLength + mBarPointerHaloRadius);
 		}
-		
-		Color.colorToHSV(color, mHSVColor);
+		System.arraycopy(color, 0, mHSVColor, 0, 3);
+
 		shader = new LinearGradient(mBarPointerHaloRadius, 0,
-				x1, y1, new int[] {Color.WHITE, color, Color.BLACK}, null,
-				Shader.TileMode.CLAMP);
+				x1, y1, new int[] {
+						getDisplayColor(color, 0),
+						getDisplayColor(color, 1) },
+				null, Shader.TileMode.CLAMP);
 		mBarPaint.setShader(shader);
-	    calculateColor(mBarPointerPosition);
-		mBarPointerPaint.setColor(mColor);
-		updateColors(source);
+
+		mBarPointerPaint.setColor(getDisplayColor(color));
+        if (!initialize){
+            if (mPicker != null) {
+                mPicker.setColor(mAlpha,
+								 mHSVColor,
+								 mType);
+            }
+        }
 		invalidate();
 	}
-
-	/**
-	 * Calculate the color selected by the pointer on the bar.
-	 * 
-	 * @param coord Coordinate of the pointer.
-	 */
-	private void calculateColor(int coord) {
-	    coord = coord - mBarPointerHaloRadius;
-		if (coord > (mBarLength / 2) && (coord < mBarLength)) {
-			mColor = Color
-					.HSVToColor(new float[] {
-							mHSVColor[0], 1f, 1 - (mPosToSVFactor * (coord - (mBarLength / 2)))
-                    });
-		} else if (coord > 0 && coord < mBarLength) {
-			mColor = Color.HSVToColor(new float[]{
-                    mHSVColor[0], (mPosToSVFactor * coord), 1f
-            });
-		} else if(coord == (mBarLength / 2)){
-            mColor = Color.HSVToColor(new float[]{
-                    mHSVColor[0], 1f, 1f
-            });
-        } else if (coord <= 0) {
-			mColor = Color.WHITE;
-		} else if (coord >= mBarLength) {
-			mColor = Color.BLACK;
-		}
+	
+	
+	private void setOmniValue(float omni){
+    	mHSVColor[mType] = omni;
+	}
+	
+	private int getDisplayColor (float[] color){
+		return getDisplayColor(color, color[mType]);
 	}
 
-	/**
-	 * Get the currently selected color.
-	 * 
-	 * @return The ARGB value of the currently selected color.
-	 */
-	public int getColor() {
-		return mColor;
+	private int getDisplayColor (float[] color, float omni){
+		float[] col = new float[3];
+		System.arraycopy(color, 0, col, 0, 3);
+		col[mType] = omni;
+		int rgbColor = Color.HSVToColor(mAlpha, col);
+		return rgbColor;
 	}
+
+
+        /**
+         * Calculate the color selected by the pointer on the bar.
+         * 
+         * @param coord Coordinate of the pointer.
+         */
+	private void setOmniValueFromCoord(float coord) {
+        coord = coord - mBarPointerHaloRadius;
+	    if (coord < 0) {
+	    	coord = 0;
+	    } else if (coord > mBarLength) {
+	    	coord = mBarLength;
+	    }
+	    float omni = mPosToOmniFactor * coord;
+	    setOmniValue(omni);
+    }
+
 
 	/**
 	 * Adds a {@code ColorPicker} instance to the bar. <br>
 	 * <br>
 	 * WARNING: Don't change the color picker. it is done already when the bar
 	 * is added to the ColorPicker
-	 * 
-	 * @see com.larswerkman.holocolorpicker.ColorPicker#addSVBar(SVBar)
+	 *
 	 * @param picker
 	 */
 	public void setColorPicker(ColorPicker picker) {
 		mPicker = picker;
 	}
 
-    private void updateColors (String source) { // TODO: make a separate method without source
-        if (mPicker != null && source == IDENTITY) {
-            mPicker.changeAllColors(mColor, source);
-        }
-    }
 
 	@Override
 	protected Parcelable onSaveInstanceState() {
@@ -496,14 +515,8 @@ public class SVBar extends View {
 
 		Bundle state = new Bundle();
 		state.putParcelable(STATE_PARENT, superState);
+		state.putInt(STATE_ALPHA, mAlpha);
 		state.putFloatArray(STATE_COLOR, mHSVColor);
-		float[] hsvColor = new float[3];
-		Color.colorToHSV(mColor, hsvColor);
-		if (hsvColor[1] < hsvColor[2]) {
-			state.putFloat(STATE_SATURATION, hsvColor[1]);
-		} else {
-			state.putFloat(STATE_VALUE, hsvColor[2]);
-		}
 
 		return state;
 	}
@@ -515,11 +528,12 @@ public class SVBar extends View {
 		Parcelable superState = savedState.getParcelable(STATE_PARENT);
 		super.onRestoreInstanceState(superState);
 
-		setColor(Color.HSVToColor(savedState.getFloatArray(STATE_COLOR)), IDENTITY);
-		if (savedState.containsKey(STATE_SATURATION)) {
-			setSaturation(savedState.getFloat(STATE_SATURATION));
-		} else {
-			setValue(savedState.getFloat(STATE_VALUE));
-		}
+		initializeColor(savedState.getInt(STATE_ALPHA), savedState.getFloatArray(STATE_COLOR));
 	}
+
+	private void logHSV(String source, float[] mHSVColor){
+		Log.d(TAG, source + ": "+mHSVColor[0]+"/"+mHSVColor[1]+"/"+mHSVColor[2]);
+	}
+
+
 }
