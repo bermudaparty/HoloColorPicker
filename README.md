@@ -1,19 +1,17 @@
 <h2>Notes regarding the changes by bermudaparty</h2>
 
-> Update: 08.09.2018. Committed a lot of local changes regarding communication between classes.
-> (1) Some changes to how the source of a color update is handled. But basically still the same logic as my last update.
-> (2) This however led to a lot of wobbling on the other bars when moving one bar. As it turns out this was to inaccuracies in how the colors were being converted between RGB and HSV (it seems that the algorithm doing that is somewhat broken, as it should technically be possible to do losslessly). Made changes so that all colors are handled in HSV during communication between components. They only get converted to RGB for updating display colors, but never stored as RGB.
-> In order to provide these updates here but still also include them in my own projects, I had to transition to using jitpack. Some gradle settings had to be updated in order to make this worker (I also deleted the SVBar that kept the project from compiling on jitpack because I haven't properly updated it). see https://jitpack.io/ for instructions on how to use my version in your project.
+<h3>How to use:</h3>
 
+- It was annoying to develop Saturation- and ValueBar in parallel, as they are basically the same code. So I merged them into a new class **OmniBar**. When using this class, all you have to do is assign either "saturation" or "value" to the attribute "bar_type" in the xml layout. It will then work the same as the other bars used to.
+```xml
+<com.larswerkman.holocolorpicker.OmniBar
+    android:id="@+id/opacitybar"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    app:bar_type="saturation|value"/>
+```
 
-These are very rough changes, only uploaded in the current form as per the request of another user. However as to current knowledge the changes work. The only exception is the SVBar, which still needs work. However I had not been able to get it to work before my changes either anyway.
-
-Following changes have been made:
-- The methods that update the colors (of the own bar and the other bars in the picker) now always require a source string (i.e. which bar the current change in color is coming from). This source information is then handled in such a way to prevent feedback loops and all bars now update each other fully. The old system of staggered partial updates (which seems to have been intentional) has been removed.
-    - The colors on the color wheel are still not being updated. This is (a) because I did not get around to implementing it and (b) because always seeing the full color range there seems a good way to make the whole picker more intuitive.
-- The direction of the value bar has been flipped. It now goes from zero value on the left to full value on the right and is (in my opinion) now in accordance with the behavior of the other bars.
-- Small changes throughout the code, which in places was (and still is) quite messy. Again, as far as I know nothing was broken, but some redundancies might have been introduced, since I did not fully familiarize myself with all of the code before making my changes.
-
+- In order to provide these updates here but still also include them in my own projects, I transitioned to using **jitpack**. Some gradle settings had to be updated in order to make this work (I also deleted the SVBar that kept the project from compiling on jitpack because I haven't properly updated it). See https://jitpack.io/ for instructions on how to use my version in your project.
 
 <h1>Android Holo ColorPicker</h1>
 
